@@ -2,7 +2,17 @@ let isPatientLogin = true;
 let currentUser = null;
 let isRecording = true;
 
-// Login functionality
+document.addEventListener('DOMContentLoaded', () => {
+  const chatStatus = document.getElementById('chatStatus');
+  const visualizer = document.querySelector('.audio-visualizer');
+  const micIcon    = document.querySelector('.microphone-icon');
+
+  visualizer.classList.add('listening');
+  micIcon.textContent = '🎤';
+  chatStatus.textContent = 'Listening...';
+});
+
+// Login part
 function toggleLoginType() {
     isPatientLogin = !isPatientLogin;
     const title = document.getElementById('loginTitle');
@@ -27,45 +37,39 @@ function handleLogin() {
     if (userId && accessCode) {
         currentUser = { id: userId, type: isPatientLogin ? 'patient' : 'caregiver' };
 
-        // Hide login view
         document.getElementById('loginView').style.display = 'none';
 
-        // Show appropriate view with animation
         if (isPatientLogin) {
-            const patientView = document.getElementById('patientView');
-            patientView.classList.add('active', 'fade-in');
+            document.getElementById('patientView').classList.add('active', 'fade-in');
         } else {
-            const caregiverView = document.getElementById('caregiverView');
-            caregiverView.classList.add('active', 'fade-in');
+            document.getElementById('caregiverView').classList.add('active', 'fade-in');
         }
     } else {
         alert('Please enter both ID and access code');
     }
 }
 
-// Patient Interface Functions
+// patient view
 const visualizer = document.querySelector('.audio-visualizer');
-visualizer.addEventListener('click', () => {
-  const chatStatus = document.getElementById('chatStatus');
-  if (!isRecording) {
-    isRecording = true;
-    chatStatus.textContent = 'Listening... Speak now';
-    setTimeout(() => {
-      chatStatus.textContent = 'I heard you say you feel good today. How did you sleep last night?';
-    }, 3000);
-  } else {
-    isRecording = false;
-    chatStatus.textContent = 'Tap to start conversation';
-  }
-});
+visualizer.addEventListener('click', toggleMute);
 
 function toggleMute() {
   const chatStatus = document.getElementById('chatStatus');
-  isRecording = !isRecording;
-  chatStatus.textContent = isRecording ? 'Listening… Speak now' : 'Mic muted – tap to un-mute';
-}
+  const micIcon    = document.querySelector('.microphone-icon');
+  const waves      = document.querySelectorAll('.wave-animation');
 
-window.onload = () => { document.getElementById('chatStatus').textContent = 'Listening… Speak now'; };
+  isRecording = !isRecording;
+
+  chatStatus.textContent = isRecording ? 'Listening...' : 'Muted';
+  micIcon.textContent    = isRecording ? '🎤' : '🔇';
+
+  visualizer.classList.toggle('muted',  !isRecording);
+  visualizer.classList.toggle('listening', isRecording);
+
+  waves.forEach(w => {
+    w.style.display = isRecording ? 'block' : 'none';
+  });
+}
 
 function markMedicationTaken() {
     const reminderCard = document.querySelector('.medication-reminder');
@@ -95,10 +99,8 @@ function snoozeMedication() {
 
 function triggerEmergency() {
     if (confirm('Are you experiencing an emergency? This will immediately notify your caregiver.')) {
-        // Simulate emergency alert
         alert('🚨 Emergency alert sent to caregiver!\n\nHelp is on the way. Stay calm.');
 
-        // Visual feedback
         const emergencyBtn = document.querySelector('.emergency-btn');
         emergencyBtn.style.animation = 'pulse 0.5s infinite';
 
@@ -108,13 +110,11 @@ function triggerEmergency() {
     }
 }
 
-// Caregiver Interface Functions
+// caregiver
 function switchTab(tabName) {
-    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
 
-    // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(tabName + 'Tab').classList.add('active');
 }

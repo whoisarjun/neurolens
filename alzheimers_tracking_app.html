@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="container">
-        <!-- Login View -->
+        <!-- Login -->
         <div id="loginView" class="login-view">
             <div class="header">
                 <div class="logo">🧠</div>
@@ -32,7 +32,7 @@
             </div>
         </div>
 
-        <!-- Patient View -->
+        <!-- Patient vieww -->
         <div id="patientView" class="patient-view">
             <div class="header">
                 <div class="logo">🧠</div>
@@ -40,7 +40,7 @@
                 <p class="tagline">How are you feeling today?</p>
             </div>
 
-            <!-- Audio Chat -->
+            <!-- audio chatbot thing -->
             <div class="audio-chat glass">
                 <div class="audio-visualizer">
                     <div class="wave-animation"></div>
@@ -48,13 +48,10 @@
                     <div class="wave-animation"></div>
                     <div class="microphone-icon">🎤</div>
                 </div>
-                <div class="chat-status" id="chatStatus">Tap to start conversation</div>
-                <div class="chat-controls">
-                    <button class="control-btn stop-btn" id="stopBtn" onclick="toggleMute()" style="display: none;">🔇</button>
-                </div>
+                <div class="chat-status" id="chatStatus">Listening...</div>
             </div>
 
-            <!-- Medication Reminder -->
+            <!-- meidcation reminder -->
             <div class="medication-reminder glass-card">
                 <div class="reminder-header">
                     <div class="reminder-icon">💊</div>
@@ -69,7 +66,7 @@
                 </div>
             </div>
 
-            <!-- Emergency Button -->
+            <!-- emergency button  -->
             <div class="emergency-section">
                 <button class="emergency-btn" onclick="triggerEmergency()">🚨</button>
                 <div class="emergency-text">Emergency Alert</div>
@@ -84,15 +81,13 @@
                 <p class="tagline">Monitoring Sarah's wellness</p>
             </div>
 
-            <!-- Tab Navigation -->
             <div class="tab-navigation">
                 <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
                 <button class="tab-btn" onclick="switchTab('insights')">Insights</button>
             </div>
 
-            <!-- Overview Tab -->
             <div id="overviewTab" class="tab-content active">
-                <!-- Cognitive Score -->
+                <!-- cognitive score -->
                 <div class="score-card glass">
                     <div class="score-circle">
                         <div class="score-value">78</div>
@@ -101,7 +96,7 @@
                     <div class="score-description">Good - Stable progress</div>
                 </div>
 
-                <!-- Metrics Grid -->
+                <!-- metrics grid -->
                 <div class="metrics-grid">
                     <div class="metric-card glass-card">
                         <div class="metric-value">85%</div>
@@ -121,7 +116,7 @@
                     </div>
                 </div>
 
-                <!-- Daily Summary -->
+                <!-- Daily summary -->
                 <div class="summary-card glass-card">
                     <div class="summary-title">Today's Summary</div>
                     <div class="summary-text">
@@ -129,7 +124,7 @@
                     </div>
                 </div>
 
-                <!-- 14-Day Trend -->
+                <!--14 day trend -->
                 <div class="trend-card glass-card">
                     <div class="trend-title">14-Day Cognitive Trend</div>
                     <div class="trend-chart">
@@ -138,7 +133,7 @@
                 </div>
             </div>
 
-            <!-- Insights Tab -->
+            <!-- Insights-->
             <div id="insightsTab" class="tab-content">
                 <div class="insights-card glass-card">
                     <div class="summary-title">Weekly Insights</div>

@@ -12,7 +12,6 @@ body {
     color: #1d1d1f;
 }
 
-/* Liquid Glass Effects */
 .glass {
     background: rgba(255, 255, 255, 0.25);
     backdrop-filter: blur(20px);
@@ -46,7 +45,6 @@ body {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
-/* Container */
 .container {
     max-width: 430px;
     margin: 0 auto;
@@ -54,7 +52,6 @@ body {
     position: relative;
 }
 
-/* Header */
 .header {
     padding: 60px 24px 24px;
     text-align: center;
@@ -88,7 +85,6 @@ body {
     font-weight: 400;
 }
 
-/* Login View */
 .login-view {
     display: flex;
     flex-direction: column;
@@ -180,7 +176,6 @@ body {
     display: block;
 }
 
-/* Audio Chat Interface */
 .audio-chat {
     margin-bottom: 32px;
     padding: 40px 32px;
@@ -270,7 +265,15 @@ body {
     box-shadow: 0 6px 20px rgba(255, 59, 48, 0.3);
 }
 
-/* Medication Reminder */
+.stop-btn.listening{
+    background:linear-gradient(135deg,#34C759,#30D158);
+    box-shadow:0 6px 20px rgba(52,199,89,.3);
+    }
+.stop-btn.muted{
+  background:linear-gradient(135deg,#FF3B30,#FF453A);
+  box-shadow:0 6px 20px rgba(255,59,48,.3);
+}
+
 .medication-reminder {
     margin-bottom: 24px;
     padding: 24px;
@@ -321,7 +324,7 @@ body {
 }
 
 .reminder-actions .btn-secondary {
-  display: none; /* hide remind me later */
+  display: none;
 }
 
 .action-btn {
@@ -350,7 +353,6 @@ body {
     border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* Emergency Button */
 .emergency-section {
     position:fixed;
     top:50%;
@@ -384,7 +386,6 @@ body {
     font-weight: 500;
 }
 
-/* Caregiver Interface */
 .caregiver-view {
     padding: 24px;
     display: none;
@@ -490,7 +491,7 @@ body {
 }
 
 .metric-card:last-child {
-  display: none; /* remove conversations */
+  display: none;
 }
 
 .metric-value {
@@ -506,7 +507,6 @@ body {
     font-weight: 500;
 }
 
-/* Daily Summary */
 .summary-card {
     padding: 24px;
     margin-bottom: 24px;
@@ -525,7 +525,6 @@ body {
     color: #1d1d1f;
 }
 
-/* Trend Chart */
 .trend-card {
     padding: 24px;
     margin-bottom: 24px;
@@ -558,7 +557,6 @@ body {
   transform-origin: bottom;
 }
 
-/* Insights */
 .insights-card {
     padding: 24px;
 }
@@ -596,7 +594,6 @@ body {
     line-height: 1.4;
 }
 
-/* Responsive Design */
 @media (max-width: 430px) {
     .container {
         max-width: 100%;
@@ -611,7 +608,7 @@ body {
     }
 }
 
-/* Animations */
+/* all Animations */
 .fade-in {
     animation: fadeIn 0.5s ease;
 }
@@ -640,4 +637,13 @@ body {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* mute thingy */
+
+.audio-visualizer.muted {
+    background: linear-gradient(135deg, #FF3B30, #FF453A);
+}
+.audio-visualizer.muted .wave-animation {
+    display: none;
 }
