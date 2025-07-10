@@ -50,35 +50,10 @@ def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold
     }
 
 # Whisper model to transcribe audio
-def transcribe_with_progress(path, chunk_sec=30):
-    model = whisper.load_model("tiny")
-
-    audio = whisper.load_audio(path)
-    audio = whisper.pad_or_trim(audio)
-
-    sr = whisper.audio.SAMPLE_RATE
-    total_samples = audio.shape[0]
-    chunk_samples = chunk_sec * sr
-    chunks = [audio[i:i+chunk_samples] for i in range(0, total_samples, chunk_samples)]
-
-    segments = []
-    for i, chunk in enumerate(tqdm(chunks, desc="Transcribing chunks")):
-        mel = whisper.log_mel_spectrogram(chunk).to(model.device)
-        result = whisper.decode(model, mel)
-        segments.append({
-            "start": i * chunk_sec,
-            "end": min((i + 1) * chunk_sec, total_samples / sr),
-            "text": result.text.strip()
-        })
-
-    return {"segments": segments}
-def transcribe(path, show_progress=True):
+def transcribe(path):
     model = whisper.load_model('tiny')
 
-    if show_progress:
-        result = transcribe_with_progress(path)
-    else:
-        result = model.transcribe(path, word_timestamps=True, language='en')
+    result = model.transcribe(path, word_timestamps=True, language='en')
 
     return result
 
