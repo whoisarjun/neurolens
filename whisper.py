@@ -30,13 +30,6 @@ def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold
     transcript_text = stitch_up_transcript(segments, pause_threshold)
     duration = segments[-1]['end'] if segments else 0
 
-    # Count filler words
-    filler_words = {'um', 'uh', 'erm', 'like', 'you know', 'basically'}
-    filler_count = sum(
-        sum(word.lower() in filler_words for word in segment['text'].split())
-        for segment in segments
-    )
-
     avg_segment_len = sum(len(segment['text'].split()) for segment in segments) / len(segments) if segments else 0
     coherence_score = round(min(1.0, avg_segment_len / 15), 3)
 
@@ -44,8 +37,6 @@ def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold
         'patient_id': patient_id,
         'day_num': day_num,
         'duration_sec': duration,
-        'filler_count': filler_count,
-        'coherence_score': coherence_score,
         'transcript_text': transcript_text,
         'segments': [
             {
@@ -74,7 +65,6 @@ def dump(patient_id, day_num, result, path):
 def prep_transcription(patient_id, day_num, path, save_path=None):
     result = transcribe(path)
     if save_path is None:
-
         i = 0
         while True:
             candidate = f"output{'' if i == 0 else i}.json"
