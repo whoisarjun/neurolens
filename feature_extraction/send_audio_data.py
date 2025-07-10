@@ -1,11 +1,14 @@
 import feature_extractor as fe
 import transcriber
 import json
+import requests
 
-def extract_features(file_path: str, patient_id: str, day_num: int, save_path=None):
+# TODO: do something so that transcript_text becomes a list of all answers (pmo)
+
+def extract_features(file_path: str, patient_id: str, save_path=None):
 
     transcription = transcriber.transcribe(file_path)
-    data = transcriber.format_transcript(patient_id, day_num, transcription)
+    data = transcriber.format_transcript(patient_id, 0, transcription)
 
     transcript, duration, segments = data['transcript_text'], data['duration_sec'], data['segments']
 
@@ -20,8 +23,13 @@ def extract_features(file_path: str, patient_id: str, day_num: int, save_path=No
 
         return None
 
-def send_to_server():
-    # IN PROGRESS
-    pass
+def send_to_server(data):
+    del sample_data['segments']
+    try:
+        response = requests.post("http://localhost:6767/process_patient_data", json=data)
+        print("Server response:", response.status_code, response.json())
+    except Exception as e:
+        print("Failed to send data to server:", e)
 
-# extract_features('../test.wav', 'P001', 67, '../output.json')
+sample_data = extract_features('../test.wav', 'P001')
+send_to_server(sample_data)
