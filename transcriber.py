@@ -6,6 +6,7 @@
 import whisper
 import json
 import os
+from tqdm import tqdm
 
 # Function to add pauses into transcript
 def stitch_up_transcript(segments, pause_threshold=3):
@@ -49,10 +50,36 @@ def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold
     }
 
 # Whisper model to transcribe audio
-def transcribe(path):
+def transcribe_with_progress(path, chunk_sec=30):
+    model = whisper.load_model("tiny")
+
+    audio = whisper.load_audio(path)
+    audio = whisper.pad_or_trim(audio)
+
+    sr = whisper.audio.SAMPLE_RATE
+    total_samples = audio.shape[0]
+    chunk_samples = chunk_sec * sr
+    chunks = [audio[i:i+chunk_samples] for i in range(0, total_samples, chunk_samples)]
+
+    segments = []
+    for i, chunk in enumerate(tqdm(chunks, desc="Transcribing chunks")):
+        mel = whisper.log_mel_spectrogram(chunk).to(model.device)
+        result = whisper.decode(model, mel)
+        segments.append({
+            "start": i * chunk_sec,
+            "end": min((i + 1) * chunk_sec, total_samples / sr),
+            "text": result.text.strip()
+        })
+
+    return {"segments": segments}
+def transcribe(path, show_progress=True):
     model = whisper.load_model('tiny')
 
-    result = model.transcribe(path, word_timestamps=True, language='en')
+    if show_progress:
+        result = transcribe_with_progress(path)
+    else:
+        result = model.transcribe(path, word_timestamps=True, language='en')
+
     return result
 
 # Dump formatted json into a file
