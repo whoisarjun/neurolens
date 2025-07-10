@@ -2,10 +2,14 @@ import re
 from typing import List, Dict, Any, Optional
 from collections import Counter
 import numpy as np
+import nltk
 from nltk.tokenize import word_tokenize, sent_tokenize
 import spacy
 import textstat
 from sentence_transformers import SentenceTransformer
+
+nltk.download('punkt')
+nltk.download('punkt_tab')
 
 # Initialize Spacy & SentenceTransformer models once
 nlp = spacy.load('en_core_web_sm')
@@ -26,13 +30,31 @@ def compute_features(
 
     # Tokenize words and sentences safely
     try:
+        print(f"[DEBUG] Raw transcript: {repr(transcript_text[:100])}")
+        print(f"[DEBUG] Attempting word tokenization...")
+        print(f"[DEBUG] nltk.data.path = {nltk.data.path}")
+        print(f"[DEBUG] Checking if 'punkt' is loaded...")
+        try:
+            nltk.data.find('tokenizers/punkt')
+            print("[DEBUG] 'punkt' tokenizer is available.")
+        except LookupError:
+            print("[ERROR] 'punkt' tokenizer is NOT found.")
         words = word_tokenize(transcript_text.lower())
     except Exception:
-        words = []
+        import traceback
+        print("[ERROR] word_tokenize() traceback:")
+        traceback.print_exc()
+        print("[ERROR] word_tokenize() failed. Falling back to simple split.")
+        words = transcript_text.lower().split()
     try:
+        print(f"[DEBUG] Attempting sentence tokenization...")
         sentences = sent_tokenize(transcript_text)
     except Exception:
-        sentences = []
+        print("[ERROR] sent_tokenize() traceback:")
+        import traceback
+        traceback.print_exc()
+        print("[ERROR] sent_tokenize() failed. Falling back to naive split by '.'.")
+        sentences = transcript_text.split('.')
 
     total_words = len(words)
     num_sentences = len(sentences)

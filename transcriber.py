@@ -51,7 +51,7 @@ def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold
 
 # Whisper model to transcribe audio
 def transcribe(path):
-    model = whisper.load_model('tiny')
+    model = whisper.load_model('small')
 
     result = model.transcribe(path, word_timestamps=True, language='en')
 
