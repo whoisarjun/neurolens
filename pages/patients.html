@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Patients Viewer</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #999;
+            padding: 8px;
+            text-align: left;
+        }
+        .details {
+            display: none;
+        }
+        .patient-row {
+            background-color: #f9f9f9;
+        }
+        .patient-row:hover {
+            background-color: #e0e0e0;
+            cursor: pointer;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #f0f0f0;
+            padding: 8px;
+            border: 1px solid #ccc;
+        }
+    </style>
+    <script>
+        function toggleDetails(id) {
+            const el = document.getElementById('details-' + id);
+            el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+        }
+    </script>
+</head>
+<body>
+    <h2>All Patients</h2>
+    <a href="/"><button>Back</button></a>
+    <table>
+        <thead>
+            <tr>
+                <th>Patient ID</th><th>Full Name</th><th>Age</th><th>Gender</th><th>#Cognitive Entries</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in patients %}
+            <tr class="patient-row" onclick="toggleDetails('{{ p.id }}')">
+                <td>{{ p.id }}</td>
+                <td>{{ p.full_name }}</td>
+                <td>{{ p.age }}</td>
+                <td>{{ p.gender }}</td>
+                <td>{{ p.cognitive_history|length }}</td>
+            </tr>
+            <tr id="details-{{ p.id }}" class="details">
+                <td colspan="5">
+                    <strong>Details:</strong><br>
+                    Description: {{ p.description }}<br><br>
+
+                    <strong>Next Questions:</strong>
+                    <ul>
+                        {% for q in p.next_questions %}
+                            <li>{{ q }}</li>
+                        {% endfor %}
+                    </ul>
+
+                    <strong>Cognitive History:</strong><br>
+                    {% for entry in p.cognitive_history %}
+                        <div><em>{{ entry.date }}</em>:
+                            <pre>{{ entry.features | tojson(indent=2) }}</pre>
+                        </div>
+                    {% endfor %}
+
+                    <strong>Question History:</strong><br>
+                    {% for entry in p.question_history %}
+                        <div><em>{{ entry.date }}</em>:
+                            <ul>
+                                {% for qa in entry.qa %}
+                                    <li><b>Q:</b> {{ qa.q }} <br> <b>A:</b> {{ qa.a }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
