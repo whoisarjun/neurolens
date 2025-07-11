@@ -95,17 +95,21 @@ def prep_next_questions(patient_data, max_entries=50, questions=5):
     Patient data:
     {patient_data}
 
-    Your questions must:
+    Your questions must adhere to the following for them to be valid:
     - Help the patient recall specific events or experiences from their past (short-term or long-term).
     - Avoid all reasoning, productivity, work, or technology-related topics.
     - Some questions should be emotionally engaging and personally meaningful (e.g., family, school, food, friends, places, holidays, etc).
-    - Combine a mixture of short-term and long-term memory questions.
+    - Combine a mixture of short-term (i.e. memories from the day or the week) and long-term memory questions (i.e. memories from the year or their childhood).
+    - Of the {questions} questions:
+        - At least 2 must be focused on short-term memory (e.g. events from today or this week)
+        - At least 2 must be focused on long-term memory (e.g. events from childhood, past holidays, old routines)
+        - 1 can be either.
     - You should act as if you are a friend to the user.
     - Do NOT include your internal thoughts, planning steps, or commentary — only output the questions. Literally JUST the questions and NOTHING else.
     - Output exactly {questions} questions separated by newline characters (\n), no numbering or bullet points.
     - The user will be reading these questions the next day.
     - Remember that the user is likely an elderly person at risk or suffering with dementia, so your questions should be simple to understand and not complex.
-    - DO NOT repeat questions that have already been asked.
+    - Do NOT repeat any questions that have been asked in the patient's question history. Use the question_history provided in the patient data to ensure all questions are fresh and unique. Repeating a question that has already been asked is considered a failure of the task.
 
     Example format:
     What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
