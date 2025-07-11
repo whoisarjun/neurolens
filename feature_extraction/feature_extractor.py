@@ -22,7 +22,8 @@ def compute_features(
     transcript_text: str,
     duration_sec: float,
     segments: Optional[List[Dict[str, Any]]] = None,
-    baseline_embedding: Optional[np.ndarray] = None
+    baseline_embedding: Optional[np.ndarray] = None,
+    debug: bool = False
 ) -> Dict[str, float]:
 
     if segments is None:
@@ -30,30 +31,38 @@ def compute_features(
 
     # Tokenize words and sentences safely
     try:
-        print(f"[DEBUG] Raw transcript: {repr(transcript_text[:100])}")
-        print(f"[DEBUG] Attempting word tokenization...")
-        print(f"[DEBUG] nltk.data.path = {nltk.data.path}")
-        print(f"[DEBUG] Checking if 'punkt' is loaded...")
+        if debug:
+            print(f"[DEBUG] Raw transcript: {repr(transcript_text[:100])}")
+            print(f"[DEBUG] Attempting word tokenization...")
+            print(f"[DEBUG] nltk.data.path = {nltk.data.path}")
+            print(f"[DEBUG] Checking if 'punkt' is loaded...")
         try:
             nltk.data.find('tokenizers/punkt')
-            print("[DEBUG] 'punkt' tokenizer is available.")
+            if debug:
+                print("[DEBUG] 'punkt' tokenizer is available.")
         except LookupError:
-            print("[ERROR] 'punkt' tokenizer is NOT found.")
+            if debug:
+                print("[DEBUG] 'punkt' tokenizer is available.")
         words = word_tokenize(transcript_text.lower())
     except Exception:
         import traceback
-        print("[ERROR] word_tokenize() traceback:")
+        if debug:
+            print("[ERROR] word_tokenize() traceback:")
         traceback.print_exc()
-        print("[ERROR] word_tokenize() failed. Falling back to simple split.")
+        if debug:
+            print("[ERROR] word_tokenize() failed. Falling back to simple split.")
         words = transcript_text.lower().split()
     try:
-        print(f"[DEBUG] Attempting sentence tokenization...")
+        if debug:
+            print(f"[DEBUG] Attempting sentence tokenization...")
         sentences = sent_tokenize(transcript_text)
     except Exception:
-        print("[ERROR] sent_tokenize() traceback:")
+        if debug:
+            print("[ERROR] sent_tokenize() traceback:")
         import traceback
         traceback.print_exc()
-        print("[ERROR] sent_tokenize() failed. Falling back to naive split by '.'.")
+        if debug:
+            print("[ERROR] sent_tokenize() failed. Falling back to naive split by '.'.")
         sentences = transcript_text.split('.')
 
     total_words = len(words)
