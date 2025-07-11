@@ -105,7 +105,7 @@ def prep_next_questions(patient_data, max_entries=50, questions=5):
     - Output exactly {questions} questions separated by newline characters (\n), no numbering or bullet points.
     - The user will be reading these questions the next day.
     - Remember that the user is likely an elderly person at risk or suffering with dementia, so your questions should be simple to understand and not complex.
-    - Avoid repeating questions that have already been asked.
+    - DO NOT repeat questions that have already been asked.
 
     Example format:
     What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
