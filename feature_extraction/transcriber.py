@@ -1,8 +1,3 @@
-# Whisper model (hackathon edition)
-# If ur going to make changes to the way the whisper part
-# of the pipeline works, PLEASE make sure you generate everything
-# in the same format so the rest of the code doesn't break.
-
 import whisper
 import json
 import os
