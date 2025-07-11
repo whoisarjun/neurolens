@@ -52,6 +52,6 @@ def send_to_server(data):
         print("Failed to send data to server:", e)
 
 sample = extract_features([
-    '../test.wav', '../test.wav', '../test.wav'
+    '../test.wav', '../test.wav', '../test.wav', '../test.wav', '../test.wav'
 ], 'P001')
 send_to_server(sample)
