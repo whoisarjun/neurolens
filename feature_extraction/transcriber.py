@@ -25,7 +25,7 @@ def stitch_up_transcript(segments, pause_threshold=3):
     return stitched
 
 # Format transcript from whisper and put into json format
-def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold=3):
+def format_transcript(patient_id: str, result: {}, pause_threshold=3):
     segments = result.get('segments', [])
 
     transcript_text = stitch_up_transcript(segments, pause_threshold)
@@ -36,7 +36,6 @@ def format_transcript(patient_id: str, day_num: int, result: {}, pause_threshold
 
     return {
         'patient_id': patient_id,
-        'day_num': day_num,
         'duration_sec': duration,
         'transcript_text': transcript_text,
         'segments': [
@@ -58,13 +57,13 @@ def transcribe(path):
     return result
 
 # Dump formatted json into a file
-def dump(patient_id, day_num, result, path):
-    json_data = format_transcript(patient_id, day_num, result)
+def dump(patient_id, result, path):
+    json_data = format_transcript(patient_id, result)
     with open(path, 'w') as f:
         json.dump(json_data, f, indent=4)
 
 # Quick function to transcribe a file into the nice format
-def prep_transcription(patient_id, day_num, path, save_path=None):
+def prep_transcription(patient_id, path, save_path=None):
     result = transcribe(path)
     if save_path is None:
         i = 0
@@ -74,6 +73,6 @@ def prep_transcription(patient_id, day_num, path, save_path=None):
                 save_path = candidate
                 break
             i += 1
-    dump(patient_id, day_num, result, save_path)
+    dump(patient_id, result, save_path)
 
 # prep_transcription('P001', 8, 'test.wav')

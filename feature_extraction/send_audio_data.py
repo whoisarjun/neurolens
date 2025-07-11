@@ -8,7 +8,7 @@ import requests
 def extract_features(file_path: str, patient_id: str, save_path=None):
 
     transcription = transcriber.transcribe(file_path)
-    data = transcriber.format_transcript(patient_id, 0, transcription)
+    data = transcriber.format_transcript(patient_id, transcription)
 
     transcript, duration, segments = data['transcript_text'], data['duration_sec'], data['segments']
 
@@ -20,7 +20,6 @@ def extract_features(file_path: str, patient_id: str, save_path=None):
     else:
         with open(save_path, 'w') as f:
             json.dump(data, f, indent=4)
-
         return None
 
 def send_to_server(data):
