@@ -3,8 +3,6 @@ import transcriber
 import json
 import requests
 
-# TODO: do something so that transcript_text becomes a list of all answers (pmo)
-
 def extract_features(file_paths: list[str], patient_id: str, save_path=None, model='tiny', verbose=True):
     all_transcriptions = []
     all_features = {}
@@ -17,12 +15,7 @@ def extract_features(file_paths: list[str], patient_id: str, save_path=None, mod
         data = transcriber.format_transcript(patient_id, transcription)
         all_transcriptions.append(data['transcript_text'])
 
-<<<<<<< HEAD
-    transcription = transcriber.transcribe(file_path)
-    data = transcriber.format_transcript(patient_id, transcription)
-=======
         transcript, duration, segments = data['transcript_text'], data['duration_sec'], data['segments']
->>>>>>> 6b668b67e2b07ee714d5ee5683cdb6ea10c7d19a
 
         features = fe.compute_features(transcript, duration, segments)
         for key, value in features.items():
@@ -47,12 +40,8 @@ def extract_features(file_paths: list[str], patient_id: str, save_path=None, mod
         return final_extraction
     else:
         with open(save_path, 'w') as f:
-<<<<<<< HEAD
-            json.dump(data, f, indent=4)
-=======
             json.dump(all_features, f, indent=4)
 
->>>>>>> 6b668b67e2b07ee714d5ee5683cdb6ea10c7d19a
         return None
 
 def send_to_server(data):
