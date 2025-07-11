@@ -9,9 +9,11 @@ def extract_features(file_paths: list[str], patient_id: str, save_path=None, mod
     all_transcriptions = []
     all_features = {}
     for i, fp in enumerate(file_paths):
-        print(f'[FEAT_EXT] Began processing file {i+1}/{len(file_paths)}')
+        if verbose:
+            print(f'[FEAT_EXT] Began processing file {i + 1}/{len(file_paths)}')
         transcription = transcriber.transcribe(fp, model=model)
-        print(f'[FEAT_EXT] Finished transcribing file {i + 1}/{len(file_paths)}')
+        if verbose:
+            print(f'[FEAT_EXT] Finished transcribing file {i + 1}/{len(file_paths)}')
         data = transcriber.format_transcript(patient_id, transcription)
         all_transcriptions.append(data['transcript_text'])
 
@@ -21,7 +23,8 @@ def extract_features(file_paths: list[str], patient_id: str, save_path=None, mod
         for key, value in features.items():
             all_features.setdefault(key, []).append(value)
 
-        print(f'[FEAT_EXT] Finished processing file {i + 1}/{len(file_paths)}')
+        if verbose:
+            print(f'[FEAT_EXT] Finished processing file {i + 1}/{len(file_paths)}')
 
     final_extraction = {
         'patient_id': patient_id,
@@ -32,7 +35,8 @@ def extract_features(file_paths: list[str], patient_id: str, save_path=None, mod
         }
     }
 
-    print(f'[FEAT_EXT] Saving data')
+    if verbose:
+        print(f'[FEAT_EXT] Saving data')
 
     if save_path is None:
         return final_extraction
