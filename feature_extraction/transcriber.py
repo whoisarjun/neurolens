@@ -1,8 +1,3 @@
-# Whisper model (hackathon edition)
-# If ur going to make changes to the way the whisper part
-# of the pipeline works, PLEASE make sure you generate everything
-# in the same format so the rest of the code doesn't break.
-
 import whisper
 import json
 import os
@@ -32,7 +27,6 @@ def format_transcript(patient_id: str, result: {}, pause_threshold=3):
     duration = segments[-1]['end'] if segments else 0
 
     avg_segment_len = sum(len(segment['text'].split()) for segment in segments) / len(segments) if segments else 0
-    coherence_score = round(min(1.0, avg_segment_len / 15), 3)
 
     return {
         'patient_id': patient_id,
@@ -49,8 +43,8 @@ def format_transcript(patient_id: str, result: {}, pause_threshold=3):
     }
 
 # Whisper model to transcribe audio
-def transcribe(path):
-    model = whisper.load_model('small')
+def transcribe(path, model='tiny'):
+    model = whisper.load_model(model)
 
     result = model.transcribe(path, word_timestamps=True, language='en')
 
