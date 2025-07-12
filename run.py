@@ -1,10 +1,7 @@
 from flask import Flask, request, render_template, render_template_string
-from datetime import datetime
 from llm import chatbot
 from db_manager import db
-import json
-import os
-import copy
+from feature_extraction import send_audio_data as audio
 
 app = Flask(__name__, template_folder='pages')
 
@@ -20,6 +17,7 @@ def home():
                 <h1>Welcome to Neurolens</h1>
                 <a href='/patients'><button>View Patients</button></a>
                 <a href='/create'><button>Create New Patient</button></a>
+                <a href='/upload_audio'><button>Upload Audio</button></a>
             </body>
         </html>
     ''')
@@ -135,6 +133,44 @@ def create_patient():
     </form>
     <a href="/"><button>Back</button></a>
     '''
+
+@app.route('/upload_audio', methods=['GET', 'POST'])
+def upload_audio():
+    if request.method == 'GET':
+        return '''
+        <h2>Upload audio files for patient</h2>
+        <form method="POST" enctype="multipart/form-data">
+            Patient ID: <input type="text" name="patient_id"><br><br>
+            Audio 1: <input type="file" name="audio"><br>
+            Audio 2: <input type="file" name="audio"><br>
+            Audio 3: <input type="file" name="audio"><br>
+            Audio 4: <input type="file" name="audio"><br>
+            Audio 5: <input type="file" name="audio"><br><br>
+            <input type="submit" value="Upload">
+        </form>
+        '''
+
+    # post
+    patient_id = request.form.get('patient_id')
+    files = request.files.getlist('audio')
+
+    if not patient_id or not files:
+        return {'error': 'Missing patient_id or audio files'}, 400
+
+    file_paths = []
+
+    for idx, file in enumerate(files):
+        filename = f"{patient_id}_q{idx+1}.wav"
+        filepath = f"./temp/{filename}"
+        file.save(filepath)
+        file_paths.append(filepath)
+
+    # Run feature extraction on each file
+    result = audio.extract_features(file_paths, patient_id)
+    audio.send_to_server(result)
+
+    return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
+
 
 if __name__ == '__main__':
     app.run(port=6767, debug=True)
