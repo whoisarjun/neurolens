@@ -1,5 +1,5 @@
-import feature_extractor as fe
-import transcriber
+from . import feature_extractor as fe
+from . import transcriber
 import json
 import requests
 

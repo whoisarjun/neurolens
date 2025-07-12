@@ -151,3 +151,15 @@ def get_full_question_history(patient_id):
     rows = cursor.fetchall()
     conn.close()
     return [{"date": r[0], "qa": r[1]} for r in rows]
+
+def hard_clear():
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM cognitive_history")
+    cursor.execute("DELETE FROM question_history")
+    cursor.execute("DELETE FROM next_questions")
+    cursor.execute("DELETE FROM patients")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("✅ Cleared all patients and related data.")
