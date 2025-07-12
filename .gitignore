@@ -5,6 +5,7 @@ feature_extraction/__pycache__/
 llm/__pycache__/
 db_manager/__pycache__/
 pages/__pycache__/
+auth/__pycache__/
 .venv/
 
 test.wav
