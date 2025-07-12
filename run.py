@@ -139,6 +139,7 @@ def upload_audio():
     if request.method == 'GET':
         return '''
         <h2>Upload audio files for patient</h2>
+        <a href="/"><button>Back</button></a>
         <form method="POST" enctype="multipart/form-data">
             Patient ID: <input type="text" name="patient_id"><br><br>
             Audio 1: <input type="file" name="audio"><br>
