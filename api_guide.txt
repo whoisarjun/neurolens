@@ -1,0 +1,67 @@
+[[[GUIDE TO MAKING API CALLS (FOR FLUTTER APP)]]]
+
+[1] POST /auth/login to log in and obtain access/refresh tokens
+
+Send:
+{
+  "patient_id": "P001",
+  "password": "password in plaintext",
+  "role": "patient" or "caregiver"
+}
+
+Receive:
+{
+  "access_token": "JWT string here",
+  "refresh_token": "another JWT string here"
+}
+
+Store both of these. Use access_token to make post requests, and if it is
+expired, use the next post request to refresh a new access_token. The refresh
+token expires too, and the only way to replace it is by making the user
+log in again.
+
+[2] POST /auth/refresh to get a new access_token with the refresh_token
+
+Send:
+(Headers) Authorization: Bearer <refresh_token>
+
+Receive:
+{
+  "access_token": "new_access_token"
+}
+
+[3] POST /process_patient_data done automatically after processing audio
+
+Send:
+(Headers) Authorization: Bearer <access_token>
+Content-Type: application/json
+{
+    "patient_id": "P001",
+    "day_num": 1,
+    "duration_sec": 45.7,
+    "transcript_text": ["answer 1", "answer 2", "answer 3", "answer 4", "answer 5"],
+    "features": {
+        "speech_speed": 3.5,
+        "pauses": 15,
+        ...
+    }
+}
+
+Receive:
+{
+  "message": "Data appended for patient P001"
+}
+
+[4] POST /upload_audio to send 5 audio files (.wav) from Flutter
+
+Send:
+(Headers) Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+Form data: 'patient_id' (e.g. P001), 'audio' (5 files, all using the key 'audio' and type .wav)
+
+Receive:
+{
+  "message": "Processed 5 audio files, sent to server"
+}
+
+! Important: make sure the form uses 'audio' as the field key for each file
