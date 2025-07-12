@@ -1,7 +1,9 @@
-from flask import Flask, request, render_template, render_template_string
+from flask import Flask, request, render_template, render_template_string, redirect
 from llm import chatbot
 from db_manager import db
 from feature_extraction import send_audio_data as audio
+import os
+import glob
 
 app = Flask(__name__, template_folder='pages')
 
@@ -18,6 +20,10 @@ def home():
                 <a href='/patients'><button>View Patients</button></a>
                 <a href='/create'><button>Create New Patient</button></a>
                 <a href='/upload_audio'><button>Upload Audio</button></a>
+                <br><br><br>
+                <form method="POST" action="/clear_patients" onsubmit="return confirm('Are you sure you want to clear ALL patients?');">
+                    <input type="submit" style="background-color:red;color:white;" value="CLEAR PATIENTS">
+                </form>
             </body>
         </html>
     ''')
@@ -139,6 +145,7 @@ def upload_audio():
     if request.method == 'GET':
         return '''
         <h2>Upload audio files for patient</h2>
+        <a href="/"><button>Back</button></a>
         <form method="POST" enctype="multipart/form-data">
             Patient ID: <input type="text" name="patient_id"><br><br>
             Audio 1: <input type="file" name="audio"><br>
@@ -169,8 +176,19 @@ def upload_audio():
     result = audio.extract_features(file_paths, patient_id)
     audio.send_to_server(result)
 
+    files = glob.glob('./temp/*')
+    for f in files:
+        try:
+            os.remove(f)
+        except Exception as e:
+            print(f"Failed to delete {f}: {e}")
+
     return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
 
+@app.route('/clear_patients', methods=['POST'])
+def clear_patients():
+    db.hard_clear()
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(port=6767, debug=True)
