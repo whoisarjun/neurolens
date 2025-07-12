@@ -1,13 +1,10 @@
 import psycopg2
-from psycopg2.extras import RealDictCursor
 import json
 from datetime import datetime
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# Remove old DB_PATH and set_path for SQLite
 
 def get_conn():
     return psycopg2.connect(
