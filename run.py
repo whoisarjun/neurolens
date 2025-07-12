@@ -2,6 +2,8 @@ from flask import Flask, request, render_template, render_template_string
 from llm import chatbot
 from db_manager import db
 from feature_extraction import send_audio_data as audio
+import os
+import glob
 
 app = Flask(__name__, template_folder='pages')
 
@@ -169,6 +171,13 @@ def upload_audio():
     # Run feature extraction on each file
     result = audio.extract_features(file_paths, patient_id)
     audio.send_to_server(result)
+
+    files = glob.glob('./temp/*')
+    for f in files:
+        try:
+            os.remove(f)
+        except Exception as e:
+            print(f"Failed to delete {f}: {e}")
 
     return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
 
