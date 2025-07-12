@@ -27,8 +27,14 @@ Send:
 
 Receive:
 {
-  "access_token": "new_access_token"
+  "access_token": "new_access_token",
+  "refresh_token": "new_refresh_token"
 }
+
+Make sure to update the stored access token and refresh token. This just makes
+it so that the user will always be logged in as long as they use the app at least
+once every 5 days (depends on the duration marked in .env). This post gives
+you an alternative way to get a refresh token as compared to /login.
 
 [3] POST /process_patient_data done automatically after processing audio
 
