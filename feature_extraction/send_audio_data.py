@@ -51,7 +51,7 @@ def send_to_server(data):
     except Exception as e:
         print("Failed to send data to server:", e)
 
-sample = extract_features([
-    '../test.wav', '../test.wav', '../test.wav', '../test.wav', '../test.wav'
-], 'P004')
-send_to_server(sample)
+# sample = extract_features([
+#     '../test.wav', '../test.wav', '../test.wav', '../test.wav', '../test.wav'
+# ], 'P004')
+# send_to_server(sample)
