@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, render_template_string
+from flask import Flask, request, render_template, render_template_string, redirect
 from llm import chatbot
 from db_manager import db
 from feature_extraction import send_audio_data as audio
@@ -20,6 +20,10 @@ def home():
                 <a href='/patients'><button>View Patients</button></a>
                 <a href='/create'><button>Create New Patient</button></a>
                 <a href='/upload_audio'><button>Upload Audio</button></a>
+                <br><br><br>
+                <form method="POST" action="/clear_patients" onsubmit="return confirm('Are you sure you want to clear ALL patients?');">
+                    <input type="submit" style="background-color:red;color:white;" value="CLEAR PATIENTS">
+                </form>
             </body>
         </html>
     ''')
@@ -181,6 +185,10 @@ def upload_audio():
 
     return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
 
+@app.route('/clear_patients', methods=['POST'])
+def clear_patients():
+    db.hard_clear()
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(port=6767, debug=True)
