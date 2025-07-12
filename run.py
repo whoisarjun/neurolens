@@ -1,4 +1,6 @@
+import argon2
 from flask import Flask, request, render_template, render_template_string, redirect
+from argon2 import PasswordHasher
 from llm import chatbot
 from db_manager import db
 from feature_extraction import send_audio_data as audio
@@ -7,7 +9,7 @@ import glob
 
 app = Flask(__name__, template_folder='pages')
 
-MODEL = 'deepseek-r1:32b'
+LLM_MODEL = 'deepseek-r1:32b'
 
 # Home page route
 @app.route('/')
@@ -66,8 +68,8 @@ def prep_next_questions(patient_data, max_entries=50, questions=5):
 
     Example format:
     What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
-    ''', model=MODEL)
-    return [q.lstrip(" 0123456789.").strip() for q in qns.split('\n')[-questions:] if q.strip()]
+    ''', model=LLM_MODEL)
+    return [q.lstrip(" 0123456789.)").strip() for q in qns.split('\n')[-questions:] if q.strip()]
 
 @app.route('/process_patient_data', methods=['POST'])
 def process_data():
@@ -98,10 +100,12 @@ def process_data():
 
 @app.route('/create', methods=['GET', 'POST'])
 def create_patient():
+    ph = argon2.PasswordHasher()
+
     if request.method == 'POST':
         patient_id = request.form['patient_id']
-        patient_password = request.form['patient_password']
-        caregiver_password = request.form['caregiver_password']
+        patient_password = ph.hash(request.form['patient_password'])
+        caregiver_password = ph.hash(request.form['caregiver_password'])
         full_name = request.form['full_name']
         first_name = request.form['first_name']
         age = int(request.form['age'])
