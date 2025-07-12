@@ -1,5 +1,5 @@
 import argon2
-from flask import Flask, request, render_template, render_template_string, redirect, jsonify
+from flask import Flask, render_template, render_template_string, redirect
 from llm import chatbot
 from db_manager import db
 from feature_extraction import send_audio_data as audio
