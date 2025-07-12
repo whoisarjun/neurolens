@@ -1,13 +1,47 @@
-from flask import Flask, request, render_template, render_template_string, redirect
+import argon2
+from flask import Flask, request, render_template, render_template_string, redirect, jsonify
 from llm import chatbot
 from db_manager import db
 from feature_extraction import send_audio_data as audio
+from auth import utils as auth
 import os
 import glob
+import jwt
 
 app = Flask(__name__, template_folder='pages')
 
-MODEL = 'deepseek-r1:32b'
+LLM_MODEL = 'deepseek-r1:32b'
+ph = argon2.PasswordHasher()
+
+from functools import wraps
+from flask import request, jsonify
+
+# decorator func just to restrict the functions here to the specific role that can access it
+def require_jwt(required_role=None):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return jsonify({'error': 'Missing or invalid token'}), 401
+
+            token = auth_header.split()[1]
+            try:
+                payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=['HS256'])
+            except jwt.ExpiredSignatureError:
+                return jsonify({'error': 'Token expired'}), 401
+            except jwt.InvalidTokenError:
+                return jsonify({'error': 'Invalid token'}), 401
+
+            if required_role and payload.get('role') != required_role:
+                return jsonify({'error': 'Unauthorized role'}), 403
+
+            request.patient_id = payload['patient_id']
+            request.role = payload['role']
+
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 # Home page route
 @app.route('/')
@@ -19,7 +53,6 @@ def home():
                 <h1>Welcome to Neurolens</h1>
                 <a href='/patients'><button>View Patients</button></a>
                 <a href='/create'><button>Create New Patient</button></a>
-                <a href='/upload_audio'><button>Upload Audio</button></a>
                 <br><br><br>
                 <form method="POST" action="/clear_patients" onsubmit="return confirm('Are you sure you want to clear ALL patients?');">
                     <input type="submit" style="background-color:red;color:white;" value="CLEAR PATIENTS">
@@ -27,6 +60,81 @@ def home():
             </body>
         </html>
     ''')
+
+@app.route('/login', methods=['GET'])
+def show_login_page():
+    return '''
+        <h2>Login</h2>
+        <form method="POST" action="/auth/login">
+            Patient ID: <input name="patient_id" type="text"><br>
+            Password: <input name="password" type="password"><br>
+            Role: <select name="role">
+                <option value="patient">Patient</option>
+                <option value="caregiver">Caregiver</option>
+            </select><br>
+            <input type="submit" value="Login">
+        </form>
+    '''
+
+@app.route('/auth/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    patient_id = data.get('patient_id')
+    password = data.get('password')
+    role = data.get('role')  # 'patient' or 'caregiver'
+
+    patient = db.get_patient_by_id(patient_id)
+    if not patient:
+        return jsonify({'error': 'Patient not found'}), 404
+
+    try:
+        if role == 'patient':
+            ph.verify(patient['patient_password'], password)
+        elif role == 'caregiver':
+            ph.verify(patient['caregiver_password'], password)
+        else:
+            return jsonify({'error': 'Invalid role'}), 400
+    except:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    return jsonify({
+        'access_token': auth.generate_access_token(patient_id, role),
+        'refresh_token': auth.generate_refresh_token(patient_id, role)
+    })
+
+@app.route('/auth/refresh', methods=['POST'])
+def refresh():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Missing or invalid refresh token'}), 401
+
+    token = auth_header.split()[1]
+
+    try:
+        payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=['HS256'])
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Refresh token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid refresh token'}), 401
+
+    if payload.get('token_type') != 'refresh':
+        return jsonify({'error': 'Not a refresh token'}), 401
+
+    # ensure the token is still in the db
+    patient_id = auth.is_valid_refresh_token(token)
+    if not patient_id:
+        return jsonify({'error': 'Invalid or expired refresh token'}), 401
+
+    # allg – remove old rt and issue new tokens
+    auth.delete_refresh_token(token)
+
+    new_access = auth.generate_access_token(payload["patient_id"], payload["role"])
+    new_refresh = auth.generate_refresh_token(payload["patient_id"], payload["role"])
+
+    return jsonify({
+        'access_token': new_access,
+        'refresh_token': new_refresh
+    })
 
 # View patients route
 @app.route('/patients')
@@ -66,10 +174,11 @@ def prep_next_questions(patient_data, max_entries=50, questions=5):
 
     Example format:
     What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
-    ''', model=MODEL)
-    return [q.lstrip(" 0123456789.").strip() for q in qns.split('\n')[-questions:] if q.strip()]
+    ''', model=LLM_MODEL)
+    return [q.lstrip(" 0123456789.)").strip() for q in qns.split('\n')[-questions:] if q.strip()]
 
 @app.route('/process_patient_data', methods=['POST'])
+@require_jwt(required_role='patient')
 def process_data():
     payload = request.get_json()
     if not payload:
@@ -100,8 +209,8 @@ def process_data():
 def create_patient():
     if request.method == 'POST':
         patient_id = request.form['patient_id']
-        patient_password = request.form['patient_password']
-        caregiver_password = request.form['caregiver_password']
+        patient_password = ph.hash(request.form['patient_password'])
+        caregiver_password = ph.hash(request.form['caregiver_password'])
         full_name = request.form['full_name']
         first_name = request.form['first_name']
         age = int(request.form['age'])
@@ -140,24 +249,9 @@ def create_patient():
     <a href="/"><button>Back</button></a>
     '''
 
-@app.route('/upload_audio', methods=['GET', 'POST'])
+@app.route('/upload_audio', methods=['POST'])
+@require_jwt(required_role='patient')
 def upload_audio():
-    if request.method == 'GET':
-        return '''
-        <h2>Upload audio files for patient</h2>
-        <a href="/"><button>Back</button></a>
-        <form method="POST" enctype="multipart/form-data">
-            Patient ID: <input type="text" name="patient_id"><br><br>
-            Audio 1: <input type="file" name="audio"><br>
-            Audio 2: <input type="file" name="audio"><br>
-            Audio 3: <input type="file" name="audio"><br>
-            Audio 4: <input type="file" name="audio"><br>
-            Audio 5: <input type="file" name="audio"><br><br>
-            <input type="submit" value="Upload">
-        </form>
-        '''
-
-    # post
     patient_id = request.form.get('patient_id')
     files = request.files.getlist('audio')
 
@@ -174,7 +268,11 @@ def upload_audio():
 
     # Run feature extraction on each file
     result = audio.extract_features(file_paths, patient_id)
-    audio.send_to_server(result)
+    audio.send_to_server(
+        result,
+        post_url='http://localhost:6767/process_patient_data',
+        auth_headers=request.headers.get('Authorization')
+    )
 
     files = glob.glob('./temp/*')
     for f in files:
@@ -185,6 +283,7 @@ def upload_audio():
 
     return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
 
+# DELETE BEFORE PUBLISH (THIS IS JUST FOR DEVELOPMENT PURPOSES)
 @app.route('/clear_patients', methods=['POST'])
 def clear_patients():
     db.hard_clear()

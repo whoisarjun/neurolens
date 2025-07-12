@@ -1,5 +1,5 @@
-from . import feature_extractor as fe
-from . import transcriber
+from feature_extraction import transcriber
+from feature_extraction import feature_extractor as fe
 import json
 import requests
 
@@ -44,9 +44,12 @@ def extract_features(file_paths: list[str], patient_id: str, save_path=None, mod
 
         return None
 
-def send_to_server(data):
+def send_to_server(data, post_url='http://localhost:6767/process_patient_data', auth_headers=None):
+    headers = {}
+    if auth_headers:
+        headers['Authorization'] = auth_headers
     try:
-        response = requests.post("http://localhost:6767/process_patient_data", json=data)
+        response = requests.post(post_url, json=data, headers=headers)
         print("Server response:", response.status_code, response.json())
     except Exception as e:
         print("Failed to send data to server:", e)
