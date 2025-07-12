@@ -110,6 +110,7 @@ def refresh():
         return jsonify({'error': 'Missing or invalid refresh token'}), 401
 
     token = auth_header.split()[1]
+
     try:
         payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=['HS256'])
     except jwt.ExpiredSignatureError:
@@ -117,8 +118,24 @@ def refresh():
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Invalid refresh token'}), 401
 
-    new_access_token = auth.generate_access_token(payload['patient_id'], payload['role'])
-    return jsonify({'access_token': new_access_token})
+    if payload.get('token_type') != 'refresh':
+        return jsonify({'error': 'Not a refresh token'}), 401
+
+    # ensure the token is still in the db
+    patient_id = auth.is_valid_refresh_token(token)
+    if not patient_id:
+        return jsonify({'error': 'Invalid or expired refresh token'}), 401
+
+    # allg – remove old rt and issue new tokens
+    auth.delete_refresh_token(token)
+
+    new_access = auth.generate_access_token(payload["patient_id"], payload["role"])
+    new_refresh = auth.generate_refresh_token(payload["patient_id"], payload["role"])
+
+    return jsonify({
+        'access_token': new_access,
+        'refresh_token': new_refresh
+    })
 
 # View patients route
 @app.route('/patients')
