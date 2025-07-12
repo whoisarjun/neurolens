@@ -98,7 +98,27 @@ def login():
     except:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    return jsonify({'access_token': auth.generate_access_token(patient_id, role)})
+    return jsonify({
+        'access_token': auth.generate_access_token(patient_id, role),
+        'refresh_token': auth.generate_refresh_token(patient_id, role)
+    })
+
+@app.route('/auth/refresh', methods=['POST'])
+def refresh():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Missing or invalid refresh token'}), 401
+
+    token = auth_header.split()[1]
+    try:
+        payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=['HS256'])
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Refresh token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid refresh token'}), 401
+
+    new_access_token = auth.generate_access_token(payload['patient_id'], payload['role'])
+    return jsonify({'access_token': new_access_token})
 
 # View patients route
 @app.route('/patients')
