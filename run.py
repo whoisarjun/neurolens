@@ -53,7 +53,6 @@ def home():
                 <h1>Welcome to Neurolens</h1>
                 <a href='/patients'><button>View Patients</button></a>
                 <a href='/create'><button>Create New Patient</button></a>
-                <a href='/upload_audio'><button>Upload Audio</button></a>
                 <br><br><br>
                 <form method="POST" action="/clear_patients" onsubmit="return confirm('Are you sure you want to clear ALL patients?');">
                     <input type="submit" style="background-color:red;color:white;" value="CLEAR PATIENTS">
@@ -250,22 +249,6 @@ def create_patient():
     <a href="/"><button>Back</button></a>
     '''
 
-@app.route('/upload_audio', methods=['GET'])
-def show_upload_audio_page():
-    return '''
-            <h2>Upload audio files for patient</h2>
-            <a href="/"><button>Back</button></a>
-            <form method="POST" enctype="multipart/form-data">
-                Patient ID: <input type="text" name="patient_id"><br><br>
-                Audio 1: <input type="file" name="audio"><br>
-                Audio 2: <input type="file" name="audio"><br>
-                Audio 3: <input type="file" name="audio"><br>
-                Audio 4: <input type="file" name="audio"><br>
-                Audio 5: <input type="file" name="audio"><br><br>
-                <input type="submit" value="Upload">
-            </form>
-            '''
-
 @app.route('/upload_audio', methods=['POST'])
 @require_jwt(required_role='patient')
 def upload_audio():
@@ -285,7 +268,11 @@ def upload_audio():
 
     # Run feature extraction on each file
     result = audio.extract_features(file_paths, patient_id)
-    audio.send_to_server(result)
+    audio.send_to_server(
+        result,
+        post_url='http://localhost:6767/process_patient_data',
+        auth_headers=request.headers.get('Authorization')
+    )
 
     files = glob.glob('./temp/*')
     for f in files:
