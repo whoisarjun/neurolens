@@ -53,5 +53,5 @@ def send_to_server(data):
 
 sample = extract_features([
     '../test.wav', '../test.wav', '../test.wav', '../test.wav', '../test.wav'
-], 'P001')
+], 'P004')
 send_to_server(sample)

@@ -7,7 +7,8 @@ import os
 import copy
 
 app = Flask(__name__, template_folder='pages')
-db.set_path('neurolens.db')
+
+MODEL = 'deepseek-r1:32b'
 
 # Home page route
 @app.route('/')
@@ -18,6 +19,7 @@ def home():
             <body>
                 <h1>Welcome to Neurolens</h1>
                 <a href='/patients'><button>View Patients</button></a>
+                <a href='/create'><button>Create New Patient</button></a>
             </body>
         </html>
     ''')
@@ -60,7 +62,7 @@ def prep_next_questions(patient_data, max_entries=50, questions=5):
 
     Example format:
     What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
-    ''', model='deepseek-r1:32b')
+    ''', model=MODEL)
     return [q.lstrip(" 0123456789.").strip() for q in qns.split('\n')[-questions:] if q.strip()]
 
 @app.route('/process_patient_data', methods=['POST'])
@@ -89,6 +91,50 @@ def process_data():
     db.update_next_questions(patient_id, updated_next_qns)
 
     return {'message': f'Data appended for patient {patient_id}'}, 200
+
+@app.route('/create', methods=['GET', 'POST'])
+def create_patient():
+    if request.method == 'POST':
+        patient_id = request.form['patient_id']
+        patient_password = request.form['patient_password']
+        caregiver_password = request.form['caregiver_password']
+        full_name = request.form['full_name']
+        first_name = request.form['first_name']
+        age = int(request.form['age'])
+        gender = request.form['gender']
+
+        db.create_new_patient(
+            patient_id=patient_id,
+            patient_password=patient_password,
+            caregiver_password=caregiver_password,
+            full_name=full_name,
+            first_name=first_name,
+            age=age,
+            gender=gender
+        )
+
+        patient = db.get_patient_by_id(patient_id)
+        if not patient:
+            return {'error': f'Patient ID {patient_id} not found'}, 404
+        updated_next_qns = prep_next_questions(dict(patient))
+        db.update_next_questions(patient_id, updated_next_qns)
+
+        return f"✅ Patient {patient_id} created successfully!"
+
+    return '''
+    <h2>Create New Patient</h2>
+    <form method="POST">
+        Patient ID: <input type="text" name="patient_id"><br>
+        Patient Password: <input type="text" name="patient_password"><br>
+        Caregiver Password: <input type="text" name="caregiver_password"><br>
+        Full Name: <input type="text" name="full_name"><br>
+        First Name: <input type="text" name="first_name"><br>
+        Age: <input type="number" name="age"><br>
+        Gender: <input type="text" name="gender"><br>
+        <input type="submit" value="Create Patient">
+    </form>
+    <a href="/"><button>Back</button></a>
+    '''
 
 if __name__ == '__main__':
     app.run(port=6767, debug=True)
