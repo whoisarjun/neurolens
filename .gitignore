@@ -11,6 +11,7 @@ auth/__pycache__/
 temp/
 temp2/
 
+.env
 test.wav
 test.py
 test2.py
