@@ -9,6 +9,7 @@ auth/__pycache__/
 .venv/
 
 test.wav
+test.py
 output.json
 user_data.json
 empty_user_data.json
