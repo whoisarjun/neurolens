@@ -71,12 +71,3 @@ Receive:
 }
 
 ! Important: make sure the form uses 'audio' as the field key for each file
-
-curl -X POST http://localhost:6767/upload_audio \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXRpZW50X2lkIjoiUDAwMSIsInJvbGUiOiJwYXRpZW50IiwiZXhwIjoxNzUyMzQ5OTI0fQ.JPeWXQKgTZRXYesMcNzKJRe1RMTQWkh5SyfLJfFPGqI" \
-  -F "patient_id=P001" \
-  -F "audio=@./temp/P001_q1.wav" \
-  -F "audio=@./temp/P001_q2.wav" \
-  -F "audio=@./temp/P001_q3.wav" \
-  -F "audio=@./temp/P001_q4.wav" \
-  -F "audio=@./temp/P001_q5.wav"
