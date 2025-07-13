@@ -69,10 +69,10 @@ def generate_report(patient_data, days=7, model='mixtral'):
     ... (continue with the rest of the features)
     
     ## Detailed Trends (Day-by-Day)
-    | Day | Speech Speed | Pauses | Vocab Richness | Filler Word Rate | Notes |
-    |-----|---------------|--------|----------------|------------------|-------|
-    | 1   | 4.3           | 30     | 0.45           | 0.02             | Normal |
-    | 2   | ...           | ...    | ...            | ...              | ...   |
+    | Day | Speech Speed | Pauses | Vocab Richness | Filler Word Rate | Semantic Similarity Drift | Notes |
+    |-----|---------------|--------|----------------|------------------|---------------------------|-------|
+    | 1   | 4.3           | 30     | 0.45           | 0.02             | 0.02                      | Normal |
+    | 2   | ...           | ...    | ...            | ...              | ...                       | ...   |
     
     ## Question Interaction Summary
     (Brief notes on how the patient answered recall questions — were they coherent, emotional, confused, etc. Ensure it is accurate based on the data provided.)
