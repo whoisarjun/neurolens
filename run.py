@@ -146,36 +146,12 @@ def view_patients():
         p['next_questions'] = db.get_next_questions(p['id'])
     return render_template("patients.html", patients=patients)
 
-def prep_next_questions(patient_data, max_entries=50, questions=5):
+def prep_next_questions(patient_data, max_entries=50):
     for i in ['patient_id', 'patient_password', 'caregiver_password', 'next_questions']:
         patient_data.pop(i, None)
     patient_data["cognitive_history"] = db.get_trimmed_cognitive_history(patient_data["id"], max_entries)
-    qns = chatbot.chat(f'''
-    You are an expert cognitive health assistant. Your job is to generate exactly {questions} memory recall questions to ask an elderly patient at risk for dementia.
-
-    Patient data:
-    {patient_data}
-
-    Your questions must adhere to the following for them to be valid:
-    - Help the patient recall specific events or experiences from their past (short-term or long-term).
-    - Avoid all reasoning, productivity, work, or technology-related topics.
-    - Some questions should be emotionally engaging and personally meaningful (e.g., family, school, food, friends, places, holidays, etc).
-    - Combine a mixture of short-term (i.e. memories from the day or the week) and long-term memory questions (i.e. memories from the year or their childhood).
-    - Of the {questions} questions:
-        - At least 2 must be focused on short-term memory (e.g. events from today or this week)
-        - At least 2 must be focused on long-term memory (e.g. events from childhood, past holidays, old routines)
-        - 1 can be either.
-    - You should act as if you are a friend to the user.
-    - Do NOT include your internal thoughts, planning steps, or commentary — only output the questions. Literally JUST the questions and NOTHING else.
-    - Output exactly {questions} questions separated by newline characters (\n), no numbering or bullet points.
-    - The user will be reading these questions the next day.
-    - Remember that the user is likely an elderly person at risk or suffering with dementia, so your questions should be simple to understand and not complex.
-    - Do NOT repeat any questions that have been asked in the patient's question history. Use the question_history provided in the patient data to ensure all questions are fresh and unique. Repeating a question that has already been asked is considered a failure of the task.
-
-    Example format:
-    What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
-    ''', model=LLM_MODEL)
-    return [q.lstrip(" 0123456789.)").strip() for q in qns.split('\n')[-questions:] if q.strip()]
+    qns = chatbot.chat(patient_data, model=LLM_MODEL)
+    return qns
 
 @app.route('/process_patient_data', methods=['POST'])
 @require_jwt(required_role='patient')
@@ -282,6 +258,37 @@ def upload_audio():
             print(f"Failed to delete {f}: {e}")
 
     return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
+
+@app.route('/generate_report', methods=['POST'])
+@require_jwt(required_role='caregiver')
+def generate_report():
+    payload = request.get_json()
+    if not payload:
+        return {'error': 'No JSON payload received'}, 400
+
+    patient_id = payload.get('patient_id')
+    days = payload.get('days')
+
+    if not patient_id or days is None:
+        return {'error': 'Missing patient_id or days'}, 400
+
+    patient = db.get_patient_by_id(patient_id)
+    if not patient:
+        return {'error': f'Patient ID {patient_id} not found'}, 404
+
+    patient_data = {
+        'full_name': patient.get('full_name'),
+        'age': patient.get('age'),
+        'gender': patient.get('gender'),
+        'cognitive_history': db.get_trimmed_cognitive_history(patient_id, days),
+        'question_history': db.get_full_question_history(patient_id),
+        'next_questions': db.get_next_questions(patient_id)
+    }
+
+    result = chatbot.generate_report(patient_data, days, model=LLM_MODEL)
+
+    return {'report': result}
+
 
 # DELETE BEFORE PUBLISH (THIS IS JUST FOR DEVELOPMENT PURPOSES)
 @app.route('/clear_patients', methods=['POST'])
