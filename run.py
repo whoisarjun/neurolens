@@ -7,6 +7,7 @@ from auth import utils as auth
 import os
 import glob
 import jwt
+import json
 
 app = Flask(__name__, template_folder='pages')
 
@@ -150,7 +151,7 @@ def prep_next_questions(patient_data, max_entries=50):
     for i in ['patient_id', 'patient_password', 'caregiver_password', 'next_questions']:
         patient_data.pop(i, None)
     patient_data["cognitive_history"] = db.get_trimmed_cognitive_history(patient_data["id"], max_entries)
-    qns = chatbot.chat(patient_data, model=LLM_MODEL)
+    qns = chatbot.new_questions(patient_data, model=LLM_MODEL)
     return qns
 
 @app.route('/process_patient_data', methods=['POST'])
@@ -276,19 +277,47 @@ def generate_report():
     if not patient:
         return {'error': f'Patient ID {patient_id} not found'}, 404
 
+    full_cog_history = db.get_trimmed_cognitive_history(patient_id, days)
+    full_qn_history = db.get_full_question_history(patient_id)
+
+    recent_cog = full_cog_history[-30:]
+    older_cog = full_cog_history[:-30] if len(full_cog_history) > 30 else []
+
+    recent_qn = full_qn_history[-30:]
+    # (optional: summarize question history too, but keeping it raw for now)
+
+    def summarize(history):
+        from statistics import mean
+        if not history:
+            return {}
+        summary = {}
+        keys = history[0].keys()
+        for k in keys:
+            vals = [h[k] for h in history if isinstance(h[k], (int, float))]
+            if vals:
+                summary[k] = {
+                    "avg": round(mean(vals), 3),
+                    "min": min(vals),
+                    "max": max(vals)
+                }
+        return summary
+
+    summary_cog = summarize(older_cog)
+
     patient_data = {
-        'full_name': patient.get('full_name'),
-        'age': patient.get('age'),
-        'gender': patient.get('gender'),
-        'cognitive_history': db.get_trimmed_cognitive_history(patient_id, days),
-        'question_history': db.get_full_question_history(patient_id),
-        'next_questions': db.get_next_questions(patient_id)
+        "patient_info": {
+            "full_name": patient.get('full_name'),
+            "age": patient.get('age'),
+            "gender": patient.get('gender')
+        },
+        "recent_cognitive_history": recent_cog,
+        "yearly_summary": summary_cog,
+        "recent_question_history": recent_qn
     }
 
     result = chatbot.generate_report(patient_data, days, model=LLM_MODEL)
 
     return {'report': result}
-
 
 # DELETE BEFORE PUBLISH (THIS IS JUST FOR DEVELOPMENT PURPOSES)
 @app.route('/clear_patients', methods=['POST'])
