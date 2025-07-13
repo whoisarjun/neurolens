@@ -8,8 +8,12 @@ pages/__pycache__/
 auth/__pycache__/
 .venv/
 
+temp/
+temp2/
+
 test.wav
 test.py
+test2.py
 output.json
 user_data.json
 empty_user_data.json

@@ -45,7 +45,11 @@ def new_questions(patient_data, model='mixtral'):
 
 def generate_report(patient_data, days=7, model='mixtral'):
     prompt = f'''
-    You are a cognitive health assistant. Using the following patient data, generate a structured report summarizing cognitive patterns over the past {days} days.
+    Here is a dementia patient's cognitive data: {patient_data['recent_cognitive_history']}
+    A summary of the patient's overall cognitive history: {patient_data['yearly_summary']}
+    A few questions and answers with the patient: {patient_data['recent_question_history']}
+    
+    You are a cognitive health assistant. Using the given patient data, generate a structured clinical report summarizing cognitive patterns over the past {days} days.
     Your job is not to replace the role of a doctor, but instead to provide the caregiver with a clear idea of how the patient is doing, and any useful information or insights that can aid the patient in dementia treatment.
     Do not include ANY internal thinking. All that is required is a report of the patient's cognitive data.
     
@@ -54,9 +58,9 @@ def generate_report(patient_data, days=7, model='mixtral'):
     # Neurolens Cognitive Report
     
     ## Patient Info
-    - Full Name: {patient_data['full_name']}
-    - Age: {patient_data['age']}
-    - Gender: {patient_data['gender'][0].upper()}
+    - Full Name: {patient_data['patient_info']['full_name']}
+    - Age: {patient_data['patient_info']['age']}
+    - Gender: {patient_data['patient_info']['gender'][0].upper()}
     - Report Period: Last {days} days
     
     ## Summary
@@ -71,8 +75,10 @@ def generate_report(patient_data, days=7, model='mixtral'):
     ## Detailed Trends (Day-by-Day)
     | Day | Speech Speed | Pauses | Vocab Richness | Filler Word Rate | Semantic Similarity Drift | Notes |
     |-----|---------------|--------|----------------|------------------|---------------------------|-------|
-    | 1   | 4.3           | 30     | 0.45           | 0.02             | 0.02                      | Normal |
+    | 1   | ...           | ...    | ...            | ...              | ...                       | ...   |
     | 2   | ...           | ...    | ...            | ...              | ...                       | ...   |
+    
+    (These are just example data. You need to fill up the table with the cognitive history provided to you.)
     
     ## Question Interaction Summary
     (Brief notes on how the patient answered recall questions — were they coherent, emotional, confused, etc. Ensure it is accurate based on the data provided.)
