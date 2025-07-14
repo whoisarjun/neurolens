@@ -1,6 +1,6 @@
 import argon2
 from flask import Flask, render_template, render_template_string, redirect
-from llm import chatbot
+from llm import chatbot, reports
 from db_manager import db
 from feature_extraction import send_audio_data as audio
 from auth import utils as auth
@@ -315,7 +315,7 @@ def generate_report():
         "recent_question_history": recent_qn
     }
 
-    result = chatbot.generate_report(patient_data, days, model=LLM_MODEL)
+    result = reports.generate(patient_data, days, model=LLM_MODEL)
 
     return {'report': result}
 
