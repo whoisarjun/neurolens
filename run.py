@@ -11,6 +11,7 @@ import json
 
 app = Flask(__name__, template_folder='pages')
 
+# Upgrade to llama3:70b once computing power is increased
 LLM_MODEL = 'deepseek-r1:32b'
 ph = argon2.PasswordHasher()
 
