@@ -3,6 +3,7 @@ from flask import Flask, render_template, render_template_string, redirect
 from llm import chatbot, reports
 from db_manager import db
 from feature_extraction import send_audio_data as audio
+from datetime import datetime, timedelta
 from auth import utils as auth
 import os
 import glob
@@ -319,6 +320,33 @@ def generate_report():
     result = reports.generate(patient_data, days, model=LLM_MODEL)
 
     return {'report': result}
+
+@app.route('/pull_cognitive_history', methods=['POST'])
+@require_jwt(required_role='caregiver')
+def pull_cognitive_history():
+    payload = request.get_json()
+    if not payload:
+        return {'error': 'No JSON payload received'}, 400
+
+    patient_id = payload.get('patient_id')
+    days = payload.get('days')
+
+    if not patient_id or days is None:
+        return {'error': 'Missing patient_id or days'}, 400
+
+    full_history = db.get_full_cognitive_history(patient_id)
+
+    if days == -1:
+        return {'cognitive_history': full_history}
+
+    cutoff_date = datetime.now() - timedelta(days=days)
+
+    filtered_history = [
+        entry for entry in full_history
+        if datetime.fromisoformat(entry['date']) >= cutoff_date
+    ]
+
+    return {'cognitive_history': filtered_history}
 
 # DELETE BEFORE PUBLISH (THIS IS JUST FOR DEVELOPMENT PURPOSES)
 @app.route('/clear_patients', methods=['POST'])

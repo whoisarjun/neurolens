@@ -67,3 +67,4 @@ def delete_refresh_token(token):
     cursor.execute("DELETE FROM refresh_tokens WHERE token = %s", (token,))
     conn.commit()
     conn.close()
+
