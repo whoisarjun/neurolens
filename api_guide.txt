@@ -39,7 +39,7 @@ you an alternative way to get a refresh token as compared to /login.
 [3] POST /process_patient_data done automatically after processing audio
 
 Send:
-(Headers) Authorization: Bearer <access_token>
+(Headers) Authorization: Bearer <access_token> [PATIENT-SIDE ONLY]
 Content-Type: application/json
 {
     "patient_id": "P001",
@@ -61,7 +61,7 @@ Receive:
 [4] POST /upload_audio to send 5 audio files (.wav) from Flutter
 
 Send:
-(Headers) Authorization: Bearer <access_token>
+(Headers) Authorization: Bearer <access_token> [PATIENT-SIDE ONLY]
 Content-Type: multipart/form-data
 Form data: 'patient_id' (e.g. P001), 'audio' (5 files, all using the key 'audio' and type .wav)
 
@@ -71,3 +71,21 @@ Receive:
 }
 
 ! Important: make sure the form uses 'audio' as the field key for each file
+
+[5] POST /pull_cognitive_history to get a user's cog. history
+
+Send:
+(Headers) Authorization: Bearer <access_token> [CAREGIVER-SIDE ONLY]
+{
+    "patient_id": "P001",
+    "days": 50
+}
+
+Receive:
+{
+    "cognitive_history": [
+        {...}, {...}, {...}, ...
+    ]
+}
+
+If `days` = -1, server returns FULL history. Otherwise it returns all entries from the past `days` days
