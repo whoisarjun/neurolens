@@ -1,4 +1,5 @@
 import argon2
+from dotenv import load_dotenv
 from flask import Flask, render_template, render_template_string, redirect
 from llm import chatbot, reports
 from db_manager import db
@@ -15,6 +16,7 @@ app = Flask(__name__, template_folder='pages')
 # Upgrade to llama3:70b once computing power is increased
 LLM_MODEL = 'deepseek-r1:32b'
 ph = argon2.PasswordHasher()
+load_dotenv()
 
 from functools import wraps
 from flask import request, jsonify

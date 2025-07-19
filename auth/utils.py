@@ -1,8 +1,10 @@
 import jwt
 import os
 import datetime as dt
-
+from dotenv import load_dotenv
 from db_manager import db
+
+load_dotenv()
 
 def generate_access_token(patient_id, role):
     payload = {
