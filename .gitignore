@@ -19,3 +19,4 @@ test3.py
 output.json
 user_data.json
 empty_user_data.json
+audio/output*.wav
