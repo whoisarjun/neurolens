@@ -33,12 +33,12 @@ def noise(fp: str, frame_rate=8000, scale=0.0015):
 
 def pipeline(text: str, fp: str, frame_rate=8000, scale=0.0015, do_reformat=True, add_noise=True):
     read(text, fp)
-    if reformat:
+    if do_reformat:
         reformat(fp, frame_rate)
     if add_noise:
         noise(fp, frame_rate, scale)
 
 read(
-    text='Where did you go on your last holiday as a child?',
+    text='test audio',
     fp='output.wav'
 )
