@@ -160,3 +160,54 @@ def hard_clear():
     cursor.close()
     conn.close()
     print("✅ Cleared all patients and related data.")
+
+# ALL THE TABLES IN THE DB
+#
+# CREATE TABLE patients (
+#   id text NOT NULL,
+#   patient_password text NOT NULL,
+#   caregiver_password text NOT NULL,
+#   full_name text,
+#   first_name text,
+#   age integer,
+#   gender text,
+#   description text DEFAULT ''::text,
+#   ,PRIMARY KEY (id)
+# );
+#
+#
+#
+# CREATE TABLE next_questions (
+#   patient_id text NOT NULL,
+#   questions_json jsonb NOT NULL,
+#   ,PRIMARY KEY (patient_id)
+# );
+#
+#
+#
+# CREATE TABLE cognitive_history (
+#   id integer DEFAULT nextval('cognitive_history_id_seq'::regclass) NOT NULL,
+#   patient_id text,
+#   date text NOT NULL,
+#   features_json jsonb NOT NULL,
+#   ,PRIMARY KEY (id)
+# );
+#
+#
+#
+# CREATE TABLE question_history (
+#   id integer DEFAULT nextval('question_history_id_seq'::regclass) NOT NULL,
+#   patient_id text,
+#   date text NOT NULL,
+#   questions_json jsonb NOT NULL,
+#   ,PRIMARY KEY (id)
+# );
+#
+#
+#
+# CREATE TABLE refresh_tokens (
+#   patient_id text NOT NULL,
+#   token text NOT NULL,
+#   expires_at timestamp without time zone NOT NULL,
+#   ,PRIMARY KEY (token)
+# );
