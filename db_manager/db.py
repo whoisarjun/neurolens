@@ -42,26 +42,20 @@ def create_new_patient(patient_id, patient_password, caregiver_password, full_na
     return response.data
 
 def get_all_patients():
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM patients")
-    rows = cursor.fetchall()
-    columns = [desc[0] for desc in cursor.description]
-    cursor.close()
-    conn.close()
-    return [dict(zip(columns, row)) for row in rows]
+    response = supabase.table('patients').select('*').execute()
+
+    if getattr(response, 'error', None):
+        raise Exception(f"Failed to fetch patients: {response.error}")
+
+    return response.data
 
 def get_patient_by_id(patient_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM patients WHERE id = %s", (patient_id,))
-    row = cursor.fetchone()
-    columns = [desc[0] for desc in cursor.description]
-    cursor.close()
-    conn.close()
-    if row:
-        return dict(zip(columns, row))
-    return None
+    response = supabase.table('patients').select('*').eq('id', patient_id).single().execute()
+
+    if getattr(response, 'error', None):
+        raise Exception(f"Failed to fetch patient {patient_id}: {response.error}")
+
+    return response.data
 
 def append_cognitive_history(patient_id, features_dict, date=None):
     if not date:
