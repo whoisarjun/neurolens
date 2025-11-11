@@ -3,8 +3,14 @@ import json
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 load_dotenv()
+url = os.environ.get('SUPABASE_URL')
+key = os.environ.get('SUPABASE_SERVICE_ROLE')
+supabase = create_client(url, key)
+
+print(supabase.table('patients').select('*').execute())
 
 def get_conn():
     return psycopg2.connect(
