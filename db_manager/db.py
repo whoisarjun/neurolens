@@ -22,30 +22,24 @@ def get_conn():
     )
 
 def create_new_patient(patient_id, patient_password, caregiver_password, full_name, first_name, age, gender):
+    data = {
+        'id': patient_id,
+        'patient_password': patient_password,
+        'caregiver_password': caregiver_password,
+        'full_name': full_name,
+        'first_name': first_name,
+        'age': age,
+        'gender': gender,
+        'description': ''
+    }
 
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO patients (
-            id, patient_password, caregiver_password,
-            full_name, first_name, age, gender, description
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (
-        patient_id,
-        patient_password,
-        caregiver_password,
-        full_name,
-        first_name,
-        age,
-        gender,
-        ""
-    ))
+    response = supabase.table('patients').insert(data).execute()
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+    if getattr(response, 'error', None):
+        raise Exception(f"Failed to create user {patient_id}: {response.error}")
 
     print(f"✅ Created user {patient_id} with empty history.")
+    return response.data
 
 def get_all_patients():
     conn = get_conn()
