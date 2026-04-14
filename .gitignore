@@ -1,22 +1,57 @@
-.idea/
-.DS_Store
-.__pycache__/
-feature_extraction/__pycache__/
-llm/__pycache__/
-db_manager/__pycache__/
-pages/__pycache__/
-auth/__pycache__/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.so
+
+# Virtual environments
+venv/
+env/
 .venv/
 
-temp/
-temp2/
+# Packaging
+build/
+dist/
+*.egg-info/
+*.egg
 
+# Jupyter
+.ipynb_checkpoints/
+
+# PyCharm / JetBrains
+.idea/
+
+# OS trash
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env / secrets
 .env
-test.wav
-test.py
-test2.py
-test3.py
-output.json
-user_data.json
-empty_user_data.json
-audio/output*.wav
+*.env
+
+# Tests / temporary
+test*.*
+*/test*.*
+test*/
+temp*.*
+*/temp*.*
+temp*/
+
+# Database
+neurolens.db
+
+# Archives/Backups
+archives/
+*archive*.*
+*/*archive*.*
+backups/
+*backup*.*
+*/*backup*.*
+
+# Agents
+.codex/

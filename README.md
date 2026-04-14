@@ -76,6 +76,14 @@ With enough training data, the model can be fine-tuned to new patients and gener
 - (Pending training) **Cognitive score predictions**
 - **Trend plots**
 
+## Backend Database
+
+This backend now uses a local SQLite database file instead of Supabase/Postgres.
+
+- Default DB file: `neurolens.db` in the project root
+- Optional override: set `SQLITE_DB_PATH` in `.env`
+- Tables are created automatically on startup
+
 ---
 
 # How to Run

@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from db_manager import db
 
 load_dotenv()
-supabase = db.supabase
 
 def generate_access_token(patient_id, role):
     payload = {
@@ -37,33 +36,11 @@ def generate_refresh_token(patient_id, role):
     return token
 
 def store_refresh_token(patient_id, token, expires_at):
-    # expires_at can be a string or datetime; Supabase can handle ISO-ish strings.
-    data = {
-        'patient_id': patient_id,
-        'token': token,
-        'expires_at': expires_at,
-    }
-
-    response = supabase.table('refresh_tokens').insert(data).execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to store refresh token for {patient_id}: {response.error}")
+    db.store_refresh_token(patient_id, token, expires_at)
 
 
 def is_valid_refresh_token(token):
-    # Try to get a single matching row; if none, it's invalid.
-    response = (
-        supabase.table('refresh_tokens')
-        .select('patient_id, expires_at')
-        .eq('token', token)
-        .maybe_single()
-        .execute()
-    )
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to validate refresh token: {response.error}")
-
-    row = response.data
+    row = db.get_refresh_token(token)
     if not row:
         return None
 
@@ -87,13 +64,4 @@ def is_valid_refresh_token(token):
 
 
 def delete_refresh_token(token):
-    response = (
-        supabase.table('refresh_tokens')
-        .delete()
-        .eq('token', token)
-        .execute()
-    )
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to delete refresh token: {response.error}")
-
+    db.delete_refresh_token(token)

@@ -1,224 +1,259 @@
-import psycopg2
 import json
-from datetime import datetime
 import os
+import sqlite3
+from datetime import datetime
+
 from dotenv import load_dotenv
-from supabase import create_client, Client
 
 load_dotenv()
-url = os.environ.get('SUPABASE_URL')
-key = os.environ.get('SUPABASE_SERVICE_ROLE')
-supabase = create_client(url, key)
+
+DB_PATH = os.getenv("SQLITE_DB_PATH", "neurolens.db")
 
 def get_conn():
-    return psycopg2.connect(
-        host=os.getenv("PG_HOST"),
-        port=os.getenv("PG_PORT"),
-        dbname=os.getenv("PG_DB"),
-        user=os.getenv("PG_USER"),
-        password=os.getenv("PG_PASSWORD")
-    )
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def _row_to_dict(row):
+    return dict(row) if row is not None else None
+
+def _serialize_json(value):
+    return json.dumps(value)
+
+def _deserialize_json(value, default):
+    if value is None:
+        return default
+    return json.loads(value)
+
+def init_db():
+    with get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS patients (
+                id TEXT PRIMARY KEY,
+                patient_password TEXT NOT NULL,
+                caregiver_password TEXT NOT NULL,
+                full_name TEXT,
+                first_name TEXT,
+                age INTEGER,
+                gender TEXT,
+                description TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS next_questions (
+                patient_id TEXT PRIMARY KEY,
+                questions_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS cognitive_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id TEXT,
+                date TEXT NOT NULL,
+                features_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS question_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id TEXT,
+                date TEXT NOT NULL,
+                questions_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                token TEXT PRIMARY KEY,
+                patient_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.commit()
 
 def create_new_patient(patient_id, patient_password, caregiver_password, full_name, first_name, age, gender):
-    data = {
-        'id': patient_id,
-        'patient_password': patient_password,
-        'caregiver_password': caregiver_password,
-        'full_name': full_name,
-        'first_name': first_name,
-        'age': age,
-        'gender': gender,
-        'description': ''
-    }
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO patients (
+                id, patient_password, caregiver_password, full_name,
+                first_name, age, gender, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (patient_id, patient_password, caregiver_password, full_name, first_name, age, gender, ""),
+        )
+        conn.commit()
 
-    response = supabase.table('patients').insert(data).execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to create user {patient_id}: {response.error}")
-
-    print(f"✅ Created user {patient_id} with empty history.")
-    return response.data
+    print(f"Created user {patient_id} with empty history.")
+    return get_patient_by_id(patient_id)
 
 def get_all_patients():
-    response = supabase.table('patients').select('*').execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to fetch patients: {response.error}")
-
-    return response.data
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM patients ORDER BY id").fetchall()
+    return [_row_to_dict(row) for row in rows]
 
 def get_patient_by_id(patient_id):
-    response = supabase.table('patients').select('*').eq('id', patient_id).single().execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to fetch patient {patient_id}: {response.error}")
-
-    return response.data
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM patients WHERE id = ?", (patient_id,)).fetchone()
+    return _row_to_dict(row)
 
 def append_cognitive_history(patient_id, features_dict, date=None):
     if not date:
-        date = datetime.now().strftime('%Y-%m-%d')
+        date = datetime.now().strftime("%Y-%m-%d")
 
-    data = {
-        'patient_id': patient_id,
-        'date': date,
-        'features_json': features_dict
+    with get_conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO cognitive_history (patient_id, date, features_json)
+            VALUES (?, ?, ?)
+            """,
+            (patient_id, date, _serialize_json(features_dict)),
+        )
+        conn.commit()
+
+    print(f"Appended cognitive history for {patient_id}.")
+    return {
+        "id": cursor.lastrowid,
+        "patient_id": patient_id,
+        "date": date,
+        "features_json": features_dict,
     }
-
-    response = supabase.table('cognitive_history').insert(data).execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to append cognitive history for {patient_id}: {response.error}")
-
-    print(f"✅ Appended cognitive history for {patient_id}.")
-    return response.data
 
 def append_question_history(patient_id, questions, answers, date=None):
     if not date:
-        date = datetime.now().strftime('%Y-%m-%d')
+        date = datetime.now().strftime("%Y-%m-%d")
 
-    qa_pairs = [{'q': q, 'a': a} for q, a in zip(questions, answers)]
+    qa_pairs = [{"q": q, "a": a} for q, a in zip(questions, answers)]
 
-    data = {
-        'patient_id': patient_id,
-        'date': date,
-        'questions_json': qa_pairs
+    with get_conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO question_history (patient_id, date, questions_json)
+            VALUES (?, ?, ?)
+            """,
+            (patient_id, date, _serialize_json(qa_pairs)),
+        )
+        conn.commit()
+
+    print(f"Appended question history for {patient_id}.")
+    return {
+        "id": cursor.lastrowid,
+        "patient_id": patient_id,
+        "date": date,
+        "questions_json": qa_pairs,
     }
-
-    response = supabase.table('question_history').insert(data).execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to append question history for {patient_id}: {response.error}")
-
-    print(f"✅ Appended question history for {patient_id}.")
-    return response.data
 
 def get_next_questions(patient_id):
-    try:
-        response = supabase.table('next_questions').select('questions_json').eq('patient_id',
-                                                                                patient_id).single().execute()
-    except Exception:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT questions_json FROM next_questions WHERE patient_id = ?",
+            (patient_id,),
+        ).fetchone()
+
+    if not row:
         return []
 
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to fetch next questions for {patient_id}: {response.error}")
-
-    if response.data and response.data.get('questions_json'):
-        return response.data['questions_json']
-    return []
+    return _deserialize_json(row["questions_json"], [])
 
 def update_next_questions(patient_id, questions):
-    data = {
-        'patient_id': patient_id,
-        'questions_json': questions
-    }
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO next_questions (patient_id, questions_json)
+            VALUES (?, ?)
+            ON CONFLICT(patient_id) DO UPDATE SET
+                questions_json = excluded.questions_json
+            """,
+            (patient_id, _serialize_json(questions)),
+        )
+        conn.commit()
 
-    response = supabase.table('next_questions').upsert(data, on_conflict='patient_id').execute()
-
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to update next questions for {patient_id}: {response.error}")
-
-    print(f"✅ Updated next questions for {patient_id}.")
-    return response.data
+    print(f"Updated next questions for {patient_id}.")
+    return {"patient_id": patient_id, "questions_json": questions}
 
 def get_trimmed_cognitive_history(patient_id, limit=50):
-    response = (
-        supabase.table('cognitive_history')
-        .select('features_json')
-        .eq('patient_id', patient_id)
-        .order('date', desc=True)
-        .limit(limit)
-        .execute()
-    )
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT features_json
+            FROM cognitive_history
+            WHERE patient_id = ?
+            ORDER BY date DESC, id DESC
+            LIMIT ?
+            """,
+            (patient_id, limit),
+        ).fetchall()
 
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to get trimmed cognitive history for {patient_id}: {response.error}")
-
-    return [row['features_json'] for row in response.data]
+    return [_deserialize_json(row["features_json"], {}) for row in rows]
 
 def get_full_cognitive_history(patient_id):
-    response = (
-        supabase.table('cognitive_history')
-        .select('date, features_json')
-        .eq('patient_id', patient_id)
-        .order('date', desc=True)
-        .execute()
-    )
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT date, features_json
+            FROM cognitive_history
+            WHERE patient_id = ?
+            ORDER BY date DESC, id DESC
+            """,
+            (patient_id,),
+        ).fetchall()
 
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to get full cognitive history for {patient_id}: {response.error}")
-
-    return [{'date': r['date'], 'features': r['features_json']} for r in response.data]
+    return [
+        {"date": row["date"], "features": _deserialize_json(row["features_json"], {})}
+        for row in rows
+    ]
 
 def get_full_question_history(patient_id):
-    response = (
-        supabase.table('question_history')
-        .select('date, questions_json')
-        .eq('patient_id', patient_id)
-        .order('date', desc=True)
-        .execute()
-    )
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT date, questions_json
+            FROM question_history
+            WHERE patient_id = ?
+            ORDER BY date DESC, id DESC
+            """,
+            (patient_id,),
+        ).fetchall()
 
-    if getattr(response, 'error', None):
-        raise Exception(f"Failed to get full question history for {patient_id}: {response.error}")
+    return [
+        {"date": row["date"], "qa": _deserialize_json(row["questions_json"], [])}
+        for row in rows
+    ]
 
-    return [{'date': r['date'], 'qa': r['questions_json']} for r in response.data]
+def store_refresh_token(patient_id, token, expires_at):
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO refresh_tokens (patient_id, token, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (patient_id, token, expires_at),
+        )
+        conn.commit()
+
+def get_refresh_token(token):
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT patient_id, expires_at
+            FROM refresh_tokens
+            WHERE token = ?
+            """,
+            (token,),
+        ).fetchone()
+    return _row_to_dict(row)
+
+def delete_refresh_token(token):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM refresh_tokens WHERE token = ?", (token,))
+        conn.commit()
 
 def hard_clear():
-    supabase.table('cognitive_history').delete().neq('id', 0).execute()
-    supabase.table('question_history').delete().neq('id', 0).execute()
-    supabase.table('next_questions').delete().neq('patient_id', '').execute()
-    supabase.table('patients').delete().neq('id', '').execute()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM cognitive_history")
+        conn.execute("DELETE FROM question_history")
+        conn.execute("DELETE FROM next_questions")
+        conn.execute("DELETE FROM refresh_tokens")
+        conn.execute("DELETE FROM patients")
+        conn.commit()
 
-    print("✅ Cleared all patients and related data.")
+    print("Cleared all patients and related data.")
 
-# ALL THE TABLES IN THE DB
-#
-# CREATE TABLE patients (
-#   id text NOT NULL,
-#   patient_password text NOT NULL,
-#   caregiver_password text NOT NULL,
-#   full_name text,
-#   first_name text,
-#   age integer,
-#   gender text,
-#   description text DEFAULT ''::text,
-#   ,PRIMARY KEY (id)
-# );
-#
-#
-#
-# CREATE TABLE next_questions (
-#   patient_id text NOT NULL,
-#   questions_json jsonb NOT NULL,
-#   ,PRIMARY KEY (patient_id)
-# );
-#
-#
-#
-# CREATE TABLE cognitive_history (
-#   id integer DEFAULT nextval('cognitive_history_id_seq'::regclass) NOT NULL,
-#   patient_id text,
-#   date text NOT NULL,
-#   features_json jsonb NOT NULL,
-#   ,PRIMARY KEY (id)
-# );
-#
-#
-#
-# CREATE TABLE question_history (
-#   id integer DEFAULT nextval('question_history_id_seq'::regclass) NOT NULL,
-#   patient_id text,
-#   date text NOT NULL,
-#   questions_json jsonb NOT NULL,
-#   ,PRIMARY KEY (id)
-# );
-#
-#
-#
-# CREATE TABLE refresh_tokens (
-#   patient_id text NOT NULL,
-#   token text NOT NULL,
-#   expires_at timestamp without time zone NOT NULL,
-#   ,PRIMARY KEY (token)
-# );
+init_db()
