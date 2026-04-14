@@ -1,120 +1,88 @@
 # Neurolens Backend
 
-Neurolens is a lightweight backend for a daily patient conversation flow. The backend stores opaque feature vectors and question/answer history, generates the next set of questions for each patient, and serves that data back to clients.
+Neurolens is a Flask backend for a patient conversation workflow. It stores per-session feature vectors, keeps question and answer history, generates the next five questions for each patient, and exposes caregiver-facing history and image-summary endpoints.
 
-The backend does not interpret feature indices, perform feature extraction, accept audio uploads, or generate explainability reports. Those concerns now live outside the backend.
+The backend does not perform audio upload handling, explainability reporting, or interpret feature-vector indices. It expects the client or a separate pipeline to produce the final numeric feature list before submission.
 
----
+## Documentation
 
-# Project Pipeline
+- API reference: [API_GUIDE.md](./API_GUIDE.md)
+- Feature extraction notes: [feature_extraction/readme.md](./feature_extraction/readme.md)
 
-## 1. Daily Question Flow
-- Each patient has a stored set of pending questions.
-- The client fetches those questions and collects 5 answers.
-- The client computes a numeric feature vector outside the backend.
+## Current Flow
 
-## 2. Session Submission
-- The client submits:
-  - `patient_id`
-  - `transcript_text` as the answer list
-  - `features` as an opaque numeric vector
-- The backend stores the feature vector unchanged.
-- The backend stores the current question/answer pairs in history.
+1. A patient or caregiver logs in with `POST /auth/login`.
+2. The client stores the returned JWT access and refresh tokens.
+3. A patient fetches pending questions with `GET /next_questions`.
+4. After answering the session, the client submits answers and features with `POST /process_patient_data`.
+5. The backend stores the session, generates the next five questions, and returns them immediately.
+6. A caregiver can retrieve cognitive history and image summaries for the patient tied to the authenticated token scope.
 
-## 3. Next Question Generation
-- After a successful submission, the backend generates the next question set.
-- The new questions are persisted and returned to the client.
+## API Surface
 
-## 4. History Retrieval
-- Caregivers can pull stored cognitive history.
-- Patients can fetch their current pending questions.
+### Auth
 
----
+- `POST /auth/login`
+- `POST /auth/refresh`
 
-# Inputs & Outputs
+### Patient
 
-## Inputs:
-- `transcript_text`: list of patient answers
-- `features`: opaque numeric vector generated outside the backend
+- `POST /process_patient_data`
+- `GET /next_questions`
 
-## Outputs:
-- Per-patient stored feature-vector history
-- Per-patient question/answer history
-- Next generated questions for the next session
+### Caregiver
 
-## Backend Database
+- `POST /pull_cognitive_history`
+- `POST /upload_patient_images`
+- `GET /patient_image_summaries`
 
-This backend now uses a local SQLite database file instead of Supabase/Postgres.
+### Local Admin / UI Pages
 
-- Default DB file: `neurolens.db` in the project root
-- Optional override: set `SQLITE_DB_PATH` in `.env`
+- `GET /`
+- `GET /login`
+- `GET /patients`
+- `GET /patients_data`
+- `GET /create`
+- `POST /create_patient`
+
+## Data Model
+
+The app uses SQLite by default.
+
+- Default database path: `neurolens.db` in the project root
+- Override with: `SQLITE_DB_PATH` in `.env`
 - Tables are created automatically on startup
 
----
+Stored data includes:
 
-# How to Run
+- Patient records and credentials
+- Refresh tokens
+- Cognitive feature history
+- Question and answer history
+- Current pending questions
+- Image summaries generated from uploaded caregiver images
 
-1. Use `prep_transcription()` to convert speech to JSON.
-2. Start the Flask server.
-3. Use `POST /process_patient_data` to submit session results.
-4. Use `GET /next_questions` to fetch the next pending questions.
+## Environment
 
----
+The backend reads configuration from `.env`. At minimum, make sure these values exist:
 
-# Planned Next Steps
+- `JWT_SECRET`
+- `ACCESS_TOKEN_LIFETIME_MINS`
+- `REFRESH_TOKEN_LIFETIME_DAYS`
+- `SQLITE_DB_PATH` (optional)
 
-## 1. Build and Train Cognitive Score Predictor
-- Partner with clinicians to collect **real-world speech + cognitive scores**
-- Train and validate multi-task regression model
-- Predict MMSE, MoCA, and CDR based on linguistic data
+## Local Setup
 
-## 2. Expand App Interface
-- Embed AI conversation system into an **easy-to-use app**
-- Features:
-  - Daily speech capture via voice chat
-  - Real-time trend dashboards
-  - Simple explainable summaries
-  - Caregiver alerts for cognitive decline
-  - Personalized tracking (relative to personal baseline)
+1. Create and activate a virtual environment.
+2. Install dependencies with `pip install -r requirements.txt`.
+3. Create a `.env` file with the required settings.
+4. Start the server with `python run.py`.
 
-## 3. Local & Secure Deployment
-- Use **quantized Whisper (e.g. whisper.cpp or ONNX)** for local ASR
-- Support **on-device processing** to preserve privacy
-- Allow both **local-first** and **secure cloud** deployment modes
+By default, the Flask app runs on `http://localhost:6767`.
 
-## 4. Broaden Feature Set
-- Add **prosodic features** (tone, rhythm)
-- Enable **multilingual support** for global use
+## Notes
 
-## 5. Real-World Testing
-- Partner with clinics to trial in real conditions
-- Optimize system for **on-device or hybrid deployment**
-
-## 6. Privacy & Security
-- Ensure compliance with **HIPAA**, **GDPR**
-- Support **secure, privacy-first architecture**
-- No data leaves the device without consent (local-first by default)
-
----
-
-# Long-Term Vision
-
-We aim to build the world's most **accessible, explainable, and proactive dementia monitoring tool**:
-
-- 🧠 **Personalized** — tracks speech vs personal baseline  
-- 🫥 **Passive-feeling** — requires only simple daily conversation  
-- 🔍 **Explainable** — gives clear insight to caregivers  
-- 🔐 **Private** — designed for local processing  
-- 📱 **Accessible** — deployable in clinics, homes, anywhere  
-
-By continuously and naturally tracking the cognitive health of patients, Neurolens empowers **earlier detection**, **personalized care**, and **better lives**.
-
----
-
-# Acknowledgments
-
-Huge thanks to:
-- OpenAI (Whisper, GPT)
-- spaCy + NLP open-source community
-- Mentors & team members
-- Hackathon organizers & judges
+- `POST /process_patient_data` requires a patient JWT and enforces that the submitted `patient_id` matches the authenticated token.
+- `POST /pull_cognitive_history`, `POST /upload_patient_images`, and `GET /patient_image_summaries` are caregiver-only routes.
+- Image uploads are summarized with Ollama and only the text summaries are persisted.
+- Removed endpoints are documented in [API_GUIDE.md](./API_GUIDE.md).

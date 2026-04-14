@@ -1,0 +1,14 @@
+Your previous answer did not satisfy the formatting requirements.
+
+Previous invalid output:
+{invalid_response}
+
+Regenerate the full answer from scratch.
+- Output exactly {question_count} unique questions.
+- Each question must be on its own line.
+- Do not number the questions.
+- Do not use bullet points.
+- Do not include explanations, headers, apologies, or commentary.
+- Do not repeat any line.
+
+Return only the {question_count} questions.

@@ -3,17 +3,34 @@ import os
 import time
 import traceback
 
-def chat(prompt, model='mixtral', verbose=True):
+PROMPTS_DIR = os.path.join(os.path.dirname(__file__), 'prompts')
+QUESTION_COUNT = 5
+QUESTION_GENERATION_MAX_ATTEMPTS = 3
+
+def load_prompt(prompt_name, **kwargs):
+    prompt_path = os.path.join(PROMPTS_DIR, prompt_name)
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as prompt_file:
+            template = prompt_file.read().strip()
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f'Missing prompt file: {prompt_path}') from exc
+    return template.format(**kwargs)
+
+def chat(prompt=None, model='mixtral', verbose=True, messages=None):
     if verbose:
         print(f'[LLM] Sending prompt to model={model}...', flush=True)
     started_at = time.perf_counter()
+    if messages is None:
+        if prompt is None:
+            raise ValueError('Either prompt or messages must be provided.')
+        messages = [{
+            'role': 'user',
+            'content': prompt
+        }]
     try:
         response = ollama.chat(
             model=model,
-            messages=[{
-                'role': 'user',
-                'content': prompt
-            }]
+            messages=messages
         )
     except Exception as exc:
         elapsed = time.perf_counter() - started_at
@@ -27,58 +44,75 @@ def chat(prompt, model='mixtral', verbose=True):
         print(f'[LLM] Response obtained in {elapsed:.2f}s.', flush=True)
     return response['message']['content']
 
+def _normalize_question_line(line):
+    return line.lstrip(" -*\t0123456789.)(").strip()
+
+def _parse_questions(response):
+    return [
+        _normalize_question_line(line)
+        for line in response.splitlines()
+        if _normalize_question_line(line)
+    ]
+
+def _validate_questions(questions):
+    if len(questions) != QUESTION_COUNT:
+        return False
+    lowered = [question.casefold() for question in questions]
+    return len(set(lowered)) == len(lowered)
+
+def _build_question_retry_messages(patient_data, invalid_response):
+    base_prompt = load_prompt(
+        'question_generation.txt',
+        patient_data=patient_data,
+        question_count=QUESTION_COUNT,
+    )
+    retry_prompt = load_prompt(
+        'question_generation_retry.txt',
+        invalid_response=invalid_response,
+        question_count=QUESTION_COUNT,
+    )
+    return [
+        {'role': 'user', 'content': base_prompt},
+        {'role': 'assistant', 'content': invalid_response},
+        {'role': 'user', 'content': retry_prompt},
+    ]
+
 def new_questions(patient_data, model='mixtral'):
-    prompt = f'''
-    You are an expert cognitive health assistant. Your job is to generate exactly 5 memory recall questions to ask an elderly patient at risk for dementia.
-
-    Patient data:
-    {patient_data}
-
-    Your questions must adhere to the following for them to be valid:
-    - Help the patient recall specific events or experiences from their past (short-term or long-term).
-    - Avoid all reasoning, productivity, work, or technology-related topics.
-    - Some questions should be emotionally engaging and personally meaningful (e.g., family, school, food, friends, places, holidays, etc).
-    - Combine a mixture of short-term (i.e. memories from the day or the week) and long-term memory questions (i.e. memories from the year or their childhood).
-    - Of the 5 questions:
-        - At least 2 must be focused on short-term memory (e.g. events from today or this week)
-        - At least 2 must be focused on long-term memory (e.g. events from childhood, past holidays, old routines)
-        - 1 can be either.
-    - You should act as if you are a friend to the user.
-    - Do NOT include your internal thoughts, planning steps, or commentary — only output the questions. Literally JUST the questions and NOTHING else.
-    - Output exactly 5 questions separated by newline characters (\n), no numbering or bullet points.
-    - The user will be reading these questions the next day.
-    - Remember that the user is likely an elderly person at risk or suffering with dementia, so your questions should be simple to understand and not complex.
-    - Do NOT repeat any questions that have been asked in the patient's question history. Use the question_history provided in the patient data to ensure all questions are fresh and unique. Repeating a question that has already been asked is considered a failure of the task.
-    - You may also be given image_summaries that describe meaningful photos associated with the patient. Use them as autobiographical anchors for personalized recall questions about people, places, events, clothing, routines, objects, celebrations, and settings shown in those photos.
-    - If image_summaries is empty, continue normally without mentioning missing images.
-    - Do not mention that you were given summaries or photos. Just use that context to make better recall questions.
-
-    Example format:
-    What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
-    '''
+    prompt = load_prompt(
+        'question_generation.txt',
+        patient_data=patient_data,
+        question_count=QUESTION_COUNT,
+    )
     print(f"[LLM] Generating new questions for patient_id={patient_data.get('id')}", flush=True)
-    response = chat(prompt, model)
-    questions = [q.lstrip(" 0123456789.)").strip() for q in response.split('\n')[-5:] if q.strip()]
-    print(f'[LLM] Parsed {len(questions)} questions.', flush=True)
-    return questions
+    raw_outputs = []
+
+    for attempt in range(1, QUESTION_GENERATION_MAX_ATTEMPTS + 1):
+        if attempt == 1:
+            response = chat(prompt=prompt, model=model)
+        else:
+            print(
+                f'[LLM] Retrying question generation attempt {attempt}/{QUESTION_GENERATION_MAX_ATTEMPTS}.',
+                flush=True,
+            )
+            response = chat(
+                model=model,
+                messages=_build_question_retry_messages(patient_data, raw_outputs[-1]),
+            )
+
+        raw_outputs.append(response)
+        questions = _parse_questions(response)
+        print(f'[LLM] Parsed {len(questions)} questions on attempt {attempt}.', flush=True)
+
+        if _validate_questions(questions):
+            return questions
+
+    raise ValueError(
+        f'Failed to generate exactly {QUESTION_COUNT} unique questions after '
+        f'{QUESTION_GENERATION_MAX_ATTEMPTS} attempts. Raw outputs: {raw_outputs}'
+    )
 
 def summarize_image(image_path, model='gemma4:e4b', verbose=True):
-    prompt = '''
-    Summarize this image with high recall of patient-relevant detail.
-
-    Capture as much visually grounded detail as possible about:
-    - people and apparent relationships
-    - approximate ages or life stage cues when visually obvious
-    - clothing, accessories, uniforms, and notable physical traits
-    - objects being held or used
-    - activities and actions
-    - location, room, landscape, landmarks, and background details
-    - event or occasion cues
-    - food, decorations, vehicles, pets, and other meaningful items
-    - any visible text, signs, labels, or dates
-
-    Do not speculate beyond what the image supports. Write one dense paragraph of factual detail only.
-    '''.strip()
+    prompt = load_prompt('image_summary.txt')
 
     if verbose:
         print(
@@ -110,49 +144,15 @@ def summarize_image(image_path, model='gemma4:e4b', verbose=True):
     return summary
 
 def generate_report(patient_data, days=7, model='mixtral'):
-    prompt = f'''
-    Here is a dementia patient's cognitive data: {patient_data['recent_cognitive_history']}
-    A summary of the patient's overall cognitive history: {patient_data['yearly_summary']}
-    A few questions and answers with the patient: {patient_data['recent_question_history']}
-    
-    You are a cognitive health assistant. Using the given patient data, generate a structured clinical report summarizing cognitive patterns over the past {days} days.
-    Your job is not to replace the role of a doctor, but instead to provide the caregiver with a clear idea of how the patient is doing, and any useful information or insights that can aid the patient in dementia treatment.
-    Do not include ANY internal thinking. All that is required is a report of the patient's cognitive data.
-    
-    Use Markdown formatting with clear sections:
-    
-    # Neurolens Cognitive Report
-    
-    ## Patient Info
-    - Full Name: {patient_data['patient_info']['full_name']}
-    - Age: {patient_data['patient_info']['age']}
-    - Gender: {patient_data['patient_info']['gender'][0].upper()}
-    - Report Period: Last {days} days
-    
-    ## Summary
-    (A brief 3-5 sentence natural-language summary)
-    
-    ## Cognitive Metrics Overview
-    - Speech Speed: (trend or insight)
-    - Vocabulary Richness: (trend or insight)
-    - Pause Duration: (trend or insight)
-    ... (continue with the rest of the features)
-    
-    ## Detailed Trends (Day-by-Day)
-    | Day | Speech Speed | Pauses | Vocab Richness | Filler Word Rate | Semantic Similarity Drift | Notes |
-    |-----|---------------|--------|----------------|------------------|---------------------------|-------|
-    | 1   | ...           | ...    | ...            | ...              | ...                       | ...   |
-    | 2   | ...           | ...    | ...            | ...              | ...                       | ...   |
-    
-    (These are just example data. You need to fill up the table with the cognitive history provided to you.)
-    
-    ## Question Interaction Summary
-    (Brief notes on how the patient answered recall questions — were they coherent, emotional, confused, etc. Ensure it is accurate based on the data provided.)
-    
-    ## Recommendations
-    - Keep monitoring for (x)
-    - Consider (y)
-    ... (continue with actual insights and real recommendations)
-    '''
+    prompt = load_prompt(
+        'report_generation.txt',
+        recent_cognitive_history=patient_data['recent_cognitive_history'],
+        yearly_summary=patient_data['yearly_summary'],
+        recent_question_history=patient_data['recent_question_history'],
+        full_name=patient_data['patient_info']['full_name'],
+        age=patient_data['patient_info']['age'],
+        gender=patient_data['patient_info']['gender'][0].upper(),
+        days=days,
+    )
     response = chat(prompt, model)
     return response.split('</think>')[-1]

@@ -9,6 +9,7 @@ import os
 import tempfile
 import uuid
 import jwt
+import traceback
 
 app = Flask(__name__, template_folder='pages')
 
@@ -22,6 +23,36 @@ load_dotenv()
 from functools import wraps
 from flask import request, jsonify
 
+
+def log_error(message, exc=None):
+    print(f"[ERROR] {message}", flush=True)
+    if exc is not None:
+        formatted_traceback = traceback.format_exc()
+        if formatted_traceback.strip() != 'NoneType: None':
+            print(formatted_traceback, flush=True)
+        else:
+            print(f"{type(exc).__name__}: {exc}", flush=True)
+
+
+def error_response(message, status_code, details=None, exc=None):
+    request_path = getattr(request, 'path', 'unknown')
+    request_method = getattr(request, 'method', 'unknown')
+    log_message = f"{request_method} {request_path} -> {status_code}: {message}"
+    if details is not None:
+        log_message = f"{log_message} | details={details}"
+    log_error(log_message, exc=exc)
+
+    payload = {'error': message}
+    if details is not None:
+        payload['details'] = details
+    return jsonify(payload), status_code
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(exc):
+    return error_response('Internal server error', 500, details=str(exc), exc=exc)
+
+
 # decorator func just to restrict the functions here to the specific role that can access it
 def require_jwt(required_role=None):
     def decorator(f):
@@ -29,18 +60,18 @@ def require_jwt(required_role=None):
         def wrapper(*args, **kwargs):
             auth_header = request.headers.get('Authorization')
             if not auth_header or not auth_header.startswith('Bearer '):
-                return jsonify({'error': 'Missing or invalid token'}), 401
+                return error_response('Missing or invalid token', 401)
 
             token = auth_header.split()[1]
             try:
                 payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=['HS256'])
             except jwt.ExpiredSignatureError:
-                return jsonify({'error': 'Token expired'}), 401
+                return error_response('Token expired', 401)
             except jwt.InvalidTokenError:
-                return jsonify({'error': 'Invalid token'}), 401
+                return error_response('Invalid token', 401)
 
             if required_role and payload.get('role') != required_role:
-                return jsonify({'error': 'Unauthorized role'}), 403
+                return error_response('Unauthorized role', 403)
 
             request.patient_id = payload['patient_id']
             request.role = payload['role']
@@ -67,7 +98,7 @@ def login():
 
     patient = db.get_patient_by_id(patient_id)
     if not patient:
-        return jsonify({'error': 'Patient not found'}), 404
+        return error_response('Patient not found', 404)
 
     try:
         if role == 'patient':
@@ -75,9 +106,9 @@ def login():
         elif role == 'caregiver':
             ph.verify(patient['caregiver_password'], password)
         else:
-            return jsonify({'error': 'Invalid role'}), 400
-    except:
-        return jsonify({'error': 'Unauthorized'}), 401
+            return error_response('Invalid role', 400)
+    except Exception as exc:
+        return error_response('Unauthorized', 401, details=str(exc), exc=exc)
 
     return jsonify({
         'access_token': auth.generate_access_token(patient_id, role),
@@ -88,24 +119,24 @@ def login():
 def refresh():
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid refresh token'}), 401
+        return error_response('Missing or invalid refresh token', 401)
 
     token = auth_header.split()[1]
 
     try:
         payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=['HS256'])
     except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Refresh token expired'}), 401
+        return error_response('Refresh token expired', 401)
     except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid refresh token'}), 401
+        return error_response('Invalid refresh token', 401)
 
     if payload.get('token_type') != 'refresh':
-        return jsonify({'error': 'Not a refresh token'}), 401
+        return error_response('Not a refresh token', 401)
 
     # ensure the token is still in the db
     patient_id = auth.is_valid_refresh_token(token)
     if not patient_id:
-        return jsonify({'error': 'Invalid or expired refresh token'}), 401
+        return error_response('Invalid or expired refresh token', 401)
 
     # allg – remove old rt and issue new tokens
     auth.delete_refresh_token(token)
@@ -153,29 +184,29 @@ def prep_next_questions(patient_data, max_entries=50):
 def process_data():
     payload = request.get_json()
     if not payload:
-        return {'error': 'No JSON payload received'}, 400
+        return error_response('No JSON payload received', 400)
 
     patient_id = payload.get('patient_id')
     if not patient_id:
-        return {'error': 'Missing patient_id'}, 400
+        return error_response('Missing patient_id', 400)
     if patient_id != request.patient_id:
-        return {'error': 'patient_id does not match authenticated user'}, 403
+        return error_response('patient_id does not match authenticated user', 403)
 
     features = payload.get('features')
     if not isinstance(features, list) or not features:
-        return {'error': 'features must be a non-empty list of numbers'}, 400
+        return error_response('features must be a non-empty list of numbers', 400)
     if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in features):
-        return {'error': 'features must contain only numbers'}, 400
+        return error_response('features must contain only numbers', 400)
 
     answers = payload.get('transcript_text')
     if not isinstance(answers, list) or not answers:
-        return {'error': 'transcript_text must be a non-empty list of strings'}, 400
+        return error_response('transcript_text must be a non-empty list of strings', 400)
     if not all(isinstance(answer, str) for answer in answers):
-        return {'error': 'transcript_text must contain only strings'}, 400
+        return error_response('transcript_text must contain only strings', 400)
 
     patient = db.get_patient_by_id(patient_id)
     if not patient:
-        return {'error': f'Patient ID {patient_id} not found'}, 404
+        return error_response(f'Patient ID {patient_id} not found', 404)
 
     db.append_cognitive_history(patient_id, features)
 
@@ -187,10 +218,7 @@ def process_data():
     try:
         updated_next_qns = prep_next_questions(dict(patient))
     except Exception as exc:
-        return {
-            'error': 'Failed to generate next questions',
-            'details': str(exc)
-        }, 502
+        return error_response('Failed to generate next questions', 502, details=str(exc), exc=exc)
     db.update_next_questions(patient_id, updated_next_qns)
 
     return {
@@ -206,7 +234,7 @@ def create_patient():
 def create_patient_api():
     data = request.get_json()
     if not data:
-        return {'error': 'No JSON payload received'}, 400
+        return error_response('No JSON payload received', 400)
 
     required_fields = [
         'patient_id',
@@ -219,7 +247,7 @@ def create_patient_api():
     ]
     missing_fields = [field for field in required_fields if field not in data or data[field] in (None, '')]
     if missing_fields:
-        return {'error': f"Missing fields: {', '.join(missing_fields)}"}, 400
+        return error_response(f"Missing fields: {', '.join(missing_fields)}", 400)
 
     patient_id = data['patient_id']
     patient_password = ph.hash(data['patient_password'])
@@ -230,7 +258,7 @@ def create_patient_api():
     try:
         age = int(data['age'])
     except (TypeError, ValueError):
-        return {'error': 'age must be an integer'}, 400
+        return error_response('age must be an integer', 400)
 
     gender = data['gender']
 
@@ -246,15 +274,17 @@ def create_patient_api():
 
     patient = db.get_patient_by_id(patient_id)
     if not patient:
-        return {'error': f'Patient ID {patient_id} not found'}, 404
+        return error_response(f'Patient ID {patient_id} not found', 404)
 
     try:
         updated_next_qns = prep_next_questions(dict(patient))
     except Exception as exc:
-        return {
-            'error': 'Patient created, but failed to generate initial questions',
-            'details': str(exc)
-        }, 502
+        return error_response(
+            'Patient created, but failed to generate initial questions',
+            502,
+            details=str(exc),
+            exc=exc,
+        )
     db.update_next_questions(patient_id, updated_next_qns)
 
     return {
@@ -267,12 +297,12 @@ def create_patient_api():
 def upload_patient_images():
     patient = db.get_patient_by_id(request.patient_id)
     if not patient:
-        return {'error': f'Patient ID {request.patient_id} not found'}, 404
+        return error_response(f'Patient ID {request.patient_id} not found', 404)
 
     files = request.files.getlist('image')
     valid_files = [file for file in files if file and file.filename]
     if not valid_files:
-        return {'error': 'Missing image files. Use repeated form field name "image".'}, 400
+        return error_response('Missing image files. Use repeated form field name "image".', 400)
 
     os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
 
@@ -291,6 +321,11 @@ def upload_patient_images():
             summary = chatbot.summarize_image(temp_path, model=IMAGE_SUMMARY_MODEL)
             stored_summaries.append(db.append_image_summary(request.patient_id, summary))
         except Exception as exc:
+            log_error(
+                f"Failed processing uploaded image for patient_id={request.patient_id}, "
+                f"filename={file.filename}: {exc}",
+                exc=exc,
+            )
             errors.append({
                 'filename': file.filename,
                 'error': str(exc),
@@ -301,10 +336,7 @@ def upload_patient_images():
                 print(f"[IMAGES] Deleted temp file {temp_path}", flush=True)
 
     if not stored_summaries:
-        return {
-            'error': 'Failed to process uploaded images',
-            'details': errors,
-        }, 502
+        return error_response('Failed to process uploaded images', 502, details=errors)
 
     status_code = 200 if not errors else 207
     return {
@@ -318,7 +350,7 @@ def upload_patient_images():
 def get_patient_image_summaries():
     patient = db.get_patient_by_id(request.patient_id)
     if not patient:
-        return {'error': f'Patient ID {request.patient_id} not found'}, 404
+        return error_response(f'Patient ID {request.patient_id} not found', 404)
 
     return {
         'patient_id': request.patient_id,
@@ -330,7 +362,7 @@ def get_patient_image_summaries():
 def get_next_questions():
     patient = db.get_patient_by_id(request.patient_id)
     if not patient:
-        return {'error': f'Patient ID {request.patient_id} not found'}, 404
+        return error_response(f'Patient ID {request.patient_id} not found', 404)
 
     return {
         'patient_id': request.patient_id,
@@ -342,13 +374,13 @@ def get_next_questions():
 def pull_cognitive_history():
     payload = request.get_json()
     if not payload:
-        return {'error': 'No JSON payload received'}, 400
+        return error_response('No JSON payload received', 400)
 
     patient_id = payload.get('patient_id')
     days = payload.get('days')
 
     if not patient_id or days is None:
-        return {'error': 'Missing patient_id or days'}, 400
+        return error_response('Missing patient_id or days', 400)
 
     full_history = db.get_full_cognitive_history(patient_id)
 
