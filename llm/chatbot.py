@@ -1,17 +1,30 @@
 import ollama
+import os
+import time
+import traceback
 
 def chat(prompt, model='mixtral', verbose=True):
     if verbose:
-        print(f'[LLM] Sending prompt...')
-    response = ollama.chat(
-        model=model,
-        messages=[{
-            'role': 'user',
-            'content': prompt
-        }]
-    )
+        print(f'[LLM] Sending prompt to model={model}...', flush=True)
+    started_at = time.perf_counter()
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=[{
+                'role': 'user',
+                'content': prompt
+            }]
+        )
+    except Exception as exc:
+        elapsed = time.perf_counter() - started_at
+        if verbose:
+            print(f'[LLM] Request failed after {elapsed:.2f}s: {exc}', flush=True)
+            print(traceback.format_exc(), flush=True)
+        raise
+
+    elapsed = time.perf_counter() - started_at
     if verbose:
-        print(f'[LLM] Response obtained.')
+        print(f'[LLM] Response obtained in {elapsed:.2f}s.', flush=True)
     return response['message']['content']
 
 def new_questions(patient_data, model='mixtral'):
@@ -36,12 +49,65 @@ def new_questions(patient_data, model='mixtral'):
     - The user will be reading these questions the next day.
     - Remember that the user is likely an elderly person at risk or suffering with dementia, so your questions should be simple to understand and not complex.
     - Do NOT repeat any questions that have been asked in the patient's question history. Use the question_history provided in the patient data to ensure all questions are fresh and unique. Repeating a question that has already been asked is considered a failure of the task.
+    - You may also be given image_summaries that describe meaningful photos associated with the patient. Use them as autobiographical anchors for personalized recall questions about people, places, events, clothing, routines, objects, celebrations, and settings shown in those photos.
+    - If image_summaries is empty, continue normally without mentioning missing images.
+    - Do not mention that you were given summaries or photos. Just use that context to make better recall questions.
 
     Example format:
     What is your favorite childhood memory?\nWhat was the last meal you really enjoyed?\n...
     '''
+    print(f"[LLM] Generating new questions for patient_id={patient_data.get('id')}", flush=True)
     response = chat(prompt, model)
-    return [q.lstrip(" 0123456789.)").strip() for q in response.split('\n')[-5:] if q.strip()]
+    questions = [q.lstrip(" 0123456789.)").strip() for q in response.split('\n')[-5:] if q.strip()]
+    print(f'[LLM] Parsed {len(questions)} questions.', flush=True)
+    return questions
+
+def summarize_image(image_path, model='gemma4:e4b', verbose=True):
+    prompt = '''
+    Summarize this image with high recall of patient-relevant detail.
+
+    Capture as much visually grounded detail as possible about:
+    - people and apparent relationships
+    - approximate ages or life stage cues when visually obvious
+    - clothing, accessories, uniforms, and notable physical traits
+    - objects being held or used
+    - activities and actions
+    - location, room, landscape, landmarks, and background details
+    - event or occasion cues
+    - food, decorations, vehicles, pets, and other meaningful items
+    - any visible text, signs, labels, or dates
+
+    Do not speculate beyond what the image supports. Write one dense paragraph of factual detail only.
+    '''.strip()
+
+    if verbose:
+        print(
+            f"[LLM] Summarizing image with model={model}, file={os.path.basename(image_path)}...",
+            flush=True,
+        )
+
+    started_at = time.perf_counter()
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=[{
+                'role': 'user',
+                'content': prompt,
+                'images': [image_path],
+            }]
+        )
+    except Exception as exc:
+        elapsed = time.perf_counter() - started_at
+        if verbose:
+            print(f'[LLM] Image summarization failed after {elapsed:.2f}s: {exc}', flush=True)
+            print(traceback.format_exc(), flush=True)
+        raise
+
+    elapsed = time.perf_counter() - started_at
+    summary = response['message']['content'].strip()
+    if verbose:
+        print(f'[LLM] Image summary obtained in {elapsed:.2f}s.', flush=True)
+    return summary
 
 def generate_report(patient_data, days=7, model='mixtral'):
     prompt = f'''

@@ -1,80 +1,46 @@
-# Neurolens: Dementia Speech Trend Tracker & Cognitive Score Predictor
+# Neurolens Backend
 
-**"Daily AI conversations for personalized, explainable dementia care."**
+Neurolens is a lightweight backend for a daily patient conversation flow. The backend stores opaque feature vectors and question/answer history, generates the next set of questions for each patient, and serves that data back to clients.
 
-Neurolens is a complete pipeline for **speech-based cognitive monitoring** of dementia patients. We analyze daily spoken responses during short AI-led conversations to extract detailed linguistic features that correlate with cognitive function, building a **personalized trend**, **AI-powered cognitive score prediction**, and **explainable reporting**.
-
-Our system combines OpenAI-powered **natural language dialogue**, **automatic speech recognition (ASR)** via Whisper, and **multi-task regression**, to offer an **accessible, non-invasive tool** for clinicians and caregivers. 
-
-Patients engage in a quick daily AI conversation—5 simple questions in their native language. Their responses are automatically analyzed to track signs of cognitive change, allowing for early intervention and more informed care.
+The backend does not interpret feature indices, perform feature extraction, accept audio uploads, or generate explainability reports. Those concerns now live outside the backend.
 
 ---
 
 # Project Pipeline
 
-## 1. Daily AI Conversation Check-In ✅ (Updated Interaction Flow)
-Instead of passively recording background speech, Neurolens now conducts a **daily AI-powered voice conversation** with each patient.
+## 1. Daily Question Flow
+- Each patient has a stored set of pending questions.
+- The client fetches those questions and collects 5 answers.
+- The client computes a numeric feature vector outside the backend.
 
-- The patient receives a **notification** at a preset time.
-- When tapped, it launches a **friendly AI chat**, powered by OpenAI.
-- The AI **asks 5 clinically meaningful questions** in the patient’s **native language**, simulating a natural conversation.
-- The patient responds verbally; no typing or button pressing needed.
-- Speech is captured, transcribed, and analyzed in real-time.
+## 2. Session Submission
+- The client submits:
+  - `patient_id`
+  - `transcript_text` as the answer list
+  - `features` as an opaque numeric vector
+- The backend stores the feature vector unchanged.
+- The backend stores the current question/answer pairs in history.
 
-This ensures **consistent, high-quality, and context-rich speech data** while staying effortless and engaging for the user.
+## 3. Next Question Generation
+- After a successful submission, the backend generates the next question set.
+- The new questions are persisted and returned to the client.
 
-## 2. Speech-to-Text (ASR)
-Audio responses are transcribed using **Whisper**. The `prep_transcription()` function outputs a **JSON file** containing the full transcript and segment timestamps.
-
-## 3. Feature Extraction
-The `compute_features()` function extracts rich **linguistic and acoustic features** from the transcript:
-
-- Speech speed, articulation rate
-- Pause statistics
-- Vocabulary richness
-- Sentence complexity (parse depth, dependency distance)
-- Discourse coherence
-- Repetition rate
-- Pronoun-to-noun ratio
-- Verb tense ratios
-- Semantic similarity drift vs personal baseline
-
-## 4. Baseline & History Tracking
-The system stores:
-- A **personal baseline** (Week 1 average) for each patient
-- A **daily history** of linguistic features
-
-## 5. Trend Visualization
-`plot_trends()` generates **visual plots** of each feature over time to help caregivers spot declines or recoveries.
-
-## 6. Explainable Reports
-`generate_explainable_report()` creates a **simple textual summary** that compares recent speech to the personal baseline, highlighting **percentage changes** in each tracked feature.
-
-## 7. Cognitive Score Prediction
-A **multi-task Ridge regression model** is built to predict:
-- MMSE (Mini-Mental State Exam)
-- MoCA (Montreal Cognitive Assessment)
-- CDR (Clinical Dementia Rating)
-
-> **Current status:** Model is architected but untrained due to the lack of a suitable dementia speech dataset. Training is a future milestone.
-
-## 8. Transfer Learning
-With enough training data, the model can be fine-tuned to new patients and generalized across diverse populations through **transfer learning**.
+## 4. History Retrieval
+- Caregivers can pull stored cognitive history.
+- Patients can fetch their current pending questions.
 
 ---
 
 # Inputs & Outputs
 
 ## Inputs:
-- **Patient audio responses** from AI-led conversations
-- **Whisper JSON files**
-- (Future) **Labels**: MMSE, MoCA, CDR
+- `transcript_text`: list of patient answers
+- `features`: opaque numeric vector generated outside the backend
 
 ## Outputs:
-- Per-patient **feature history**
-- **Explainable reports** showing changes
-- (Pending training) **Cognitive score predictions**
-- **Trend plots**
+- Per-patient stored feature-vector history
+- Per-patient question/answer history
+- Next generated questions for the next session
 
 ## Backend Database
 
@@ -89,9 +55,9 @@ This backend now uses a local SQLite database file instead of Supabase/Postgres.
 # How to Run
 
 1. Use `prep_transcription()` to convert speech to JSON.
-2. Use `update_patient_day_from_json()` to populate `history` and `baseline`.
-3. (Optional) Train the model via `train_multi_task_model()` — pending dataset.
-4. Use `plot_trends()` and `generate_explainable_report()` to visualize progress.
+2. Start the Flask server.
+3. Use `POST /process_patient_data` to submit session results.
+4. Use `GET /next_questions` to fetch the next pending questions.
 
 ---
 

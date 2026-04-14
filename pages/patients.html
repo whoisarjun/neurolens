@@ -36,59 +36,100 @@
             const el = document.getElementById('details-' + id);
             el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
         }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function renderPatient(patient) {
+            const nextQuestions = patient.next_questions.map((question) =>
+                `<li>${escapeHtml(question)}</li>`
+            ).join('');
+
+            const cognitiveHistory = patient.cognitive_history.map((entry) =>
+                `<div><em>${escapeHtml(entry.date)}</em>:<pre>${escapeHtml(JSON.stringify(entry.features, null, 2))}</pre></div>`
+            ).join('');
+
+            const questionHistory = patient.question_history.map((entry) => {
+                const qaItems = entry.qa.map((qa) =>
+                    `<li><b>Q:</b> ${escapeHtml(qa.q)} <br> <b>A:</b> ${escapeHtml(qa.a)}</li>`
+                ).join('');
+                return `<div><em>${escapeHtml(entry.date)}</em>:<ul>${qaItems}</ul></div>`;
+            }).join('');
+
+            const imageSummaries = patient.image_summaries.map((entry) =>
+                `<div><em>${escapeHtml(entry.date)}</em> (#${escapeHtml(entry.id)}):<pre>${escapeHtml(entry.summary)}</pre></div>`
+            ).join('');
+
+            return `
+                <tr class="patient-row" onclick="toggleDetails('${escapeHtml(patient.id)}')">
+                    <td>${escapeHtml(patient.id)}</td>
+                    <td>${escapeHtml(patient.full_name)}</td>
+                    <td>${escapeHtml(patient.age)}</td>
+                    <td>${escapeHtml(patient.gender)}</td>
+                    <td>${patient.cognitive_history.length}</td>
+                </tr>
+                <tr id="details-${escapeHtml(patient.id)}" class="details">
+                    <td colspan="5">
+                        <strong>Details:</strong><br>
+                        Description: ${escapeHtml(patient.description)}<br><br>
+
+                        <strong>Next Questions:</strong>
+                        <ul>${nextQuestions}</ul>
+
+                        <strong>Cognitive History:</strong><br>
+                        ${cognitiveHistory}
+
+                        <strong>Question History:</strong><br>
+                        ${questionHistory}
+
+                        <strong>Image Summaries:</strong><br>
+                        ${imageSummaries}
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function loadPatients() {
+            const body = document.getElementById('patients-body');
+            const status = document.getElementById('status');
+
+            status.textContent = 'Loading...';
+            try {
+                const response = await fetch('/patients_data');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load patients');
+                }
+
+                body.innerHTML = data.patients.map(renderPatient).join('');
+                status.textContent = '';
+            } catch (error) {
+                body.innerHTML = '';
+                status.textContent = error.message;
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', loadPatients);
     </script>
 </head>
 <body>
     <h2>All Patients</h2>
     <a href="/"><button>Back</button></a>
+    <p id="status"></p>
     <table>
         <thead>
             <tr>
                 <th>Patient ID</th><th>Full Name</th><th>Age</th><th>Gender</th><th>#Cognitive Entries</th>
             </tr>
         </thead>
-        <tbody>
-            {% for p in patients %}
-            <tr class="patient-row" onclick="toggleDetails('{{ p.id }}')">
-                <td>{{ p.id }}</td>
-                <td>{{ p.full_name }}</td>
-                <td>{{ p.age }}</td>
-                <td>{{ p.gender }}</td>
-                <td>{{ p.cognitive_history|length }}</td>
-            </tr>
-            <tr id="details-{{ p.id }}" class="details">
-                <td colspan="5">
-                    <strong>Details:</strong><br>
-                    Description: {{ p.description }}<br><br>
-
-                    <strong>Next Questions:</strong>
-                    <ul>
-                        {% for q in p.next_questions %}
-                            <li>{{ q }}</li>
-                        {% endfor %}
-                    </ul>
-
-                    <strong>Cognitive History:</strong><br>
-                    {% for entry in p.cognitive_history %}
-                        <div><em>{{ entry.date }}</em>:
-                            <pre>{{ entry.features | tojson(indent=2) }}</pre>
-                        </div>
-                    {% endfor %}
-
-                    <strong>Question History:</strong><br>
-                    {% for entry in p.question_history %}
-                        <div><em>{{ entry.date }}</em>:
-                            <ul>
-                                {% for qa in entry.qa %}
-                                    <li><b>Q:</b> {{ qa.q }} <br> <b>A:</b> {{ qa.a }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endfor %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+        <tbody id="patients-body"></tbody>
     </table>
 </body>
 </html>

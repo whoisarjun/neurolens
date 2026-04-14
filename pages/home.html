@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Neurolens</title>
+</head>
+<body>
+    <h1>Welcome to Neurolens</h1>
+    <a href="/patients"><button>View Patients</button></a>
+    <a href="/create"><button>Create New Patient</button></a>
+    <a href="/login"><button>Login</button></a>
+    <br><br><br>
+    <button id="clear-patients" style="background-color:red;color:white;">CLEAR PATIENTS</button>
+    <pre id="clear-result"></pre>
+
+    <script>
+        console.log('home script loaded');
+
+        const clearBtn = document.getElementById('clear-patients');
+        console.log('clearBtn =', clearBtn);
+
+        clearBtn.addEventListener('click', async function() {
+            console.log('clear button clicked');
+
+            const confirmed = window.confirm('Are you sure you want to clear ALL patients?');
+            console.log('confirm result =', confirmed);
+
+            if (!confirmed) {
+                return;
+            }
+
+            const response = await fetch('/clear_patients', { method: 'POST' });
+            const data = await response.json();
+            document.getElementById('clear-result').textContent = JSON.stringify(data, null, 2);
+        });
+    </script>
+</body>
+</html>

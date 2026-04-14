@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+</head>
+<body>
+    <h2>Login</h2>
+    <form id="login-form">
+        Patient ID: <input name="patient_id" type="text"><br>
+        Password: <input name="password" type="password"><br>
+        Role: <select name="role">
+            <option value="patient">Patient</option>
+            <option value="caregiver">Caregiver</option>
+        </select><br>
+        <input type="submit" value="Login">
+    </form>
+    <pre id="result"></pre>
+    <a href="/"><button>Back</button></a>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const form = new FormData(event.target);
+            const payload = {
+                patient_id: form.get('patient_id'),
+                password: form.get('password'),
+                role: form.get('role')
+            };
+
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+        });
+    </script>
+</body>
+</html>

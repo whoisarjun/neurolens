@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Patient</title>
+</head>
+<body>
+    <h2>Create New Patient</h2>
+    <form id="create-form">
+        Patient ID: <input type="text" name="patient_id"><br>
+        Patient Password: <input type="text" name="patient_password"><br>
+        Caregiver Password: <input type="text" name="caregiver_password"><br>
+        Full Name: <input type="text" name="full_name"><br>
+        First Name: <input type="text" name="first_name"><br>
+        Age: <input type="number" name="age"><br>
+        Gender: <input type="text" name="gender"><br>
+        <input id="submit-button" type="submit" value="Create Patient">
+    </form>
+    <p id="status"></p>
+    <pre id="result"></pre>
+    <a href="/"><button>Back</button></a>
+
+    <script>
+        document.getElementById('create-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const form = new FormData(event.target);
+            const payload = {
+                patient_id: form.get('patient_id'),
+                patient_password: form.get('patient_password'),
+                caregiver_password: form.get('caregiver_password'),
+                full_name: form.get('full_name'),
+                first_name: form.get('first_name'),
+                age: Number(form.get('age')),
+                gender: form.get('gender')
+            };
+            const status = document.getElementById('status');
+            const result = document.getElementById('result');
+            const submitButton = document.getElementById('submit-button');
+
+            try {
+                status.textContent = 'Creating patient and generating initial questions...';
+                result.textContent = '';
+                submitButton.disabled = true;
+                const response = await fetch('/create_patient', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                result.textContent = JSON.stringify(data, null, 2);
+                status.textContent = response.ok
+                    ? 'Done.'
+                    : 'Request finished with an error.';
+            } catch (error) {
+                result.textContent = JSON.stringify({
+                    error: 'Request failed',
+                    details: error.message
+                }, null, 2);
+                status.textContent = 'Request failed before the server returned a response.';
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

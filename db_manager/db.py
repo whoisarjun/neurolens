@@ -59,6 +59,13 @@ def init_db():
                 questions_json TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS patient_image_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                summary_text TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS refresh_tokens (
                 token TEXT PRIMARY KEY,
                 patient_id TEXT NOT NULL,
@@ -217,6 +224,63 @@ def get_full_question_history(patient_id):
         for row in rows
     ]
 
+def append_image_summary(patient_id, summary_text, date=None):
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+
+    with get_conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO patient_image_summaries (patient_id, date, summary_text)
+            VALUES (?, ?, ?)
+            """,
+            (patient_id, date, summary_text),
+        )
+        conn.commit()
+
+    print(f"Stored image summary for {patient_id}.")
+    return {
+        "id": cursor.lastrowid,
+        "patient_id": patient_id,
+        "date": date,
+        "summary": summary_text,
+    }
+
+def get_full_image_summaries(patient_id):
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, date, summary_text
+            FROM patient_image_summaries
+            WHERE patient_id = ?
+            ORDER BY date DESC, id DESC
+            """,
+            (patient_id,),
+        ).fetchall()
+
+    return [
+        {"id": row["id"], "date": row["date"], "summary": row["summary_text"]}
+        for row in rows
+    ]
+
+def get_random_image_summaries(patient_id, limit=5):
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, date, summary_text
+            FROM patient_image_summaries
+            WHERE patient_id = ?
+            ORDER BY RANDOM()
+            LIMIT ?
+            """,
+            (patient_id, limit),
+        ).fetchall()
+
+    return [
+        {"id": row["id"], "date": row["date"], "summary": row["summary_text"]}
+        for row in rows
+    ]
+
 def store_refresh_token(patient_id, token, expires_at):
     with get_conn() as conn:
         conn.execute(
@@ -249,6 +313,7 @@ def hard_clear():
     with get_conn() as conn:
         conn.execute("DELETE FROM cognitive_history")
         conn.execute("DELETE FROM question_history")
+        conn.execute("DELETE FROM patient_image_summaries")
         conn.execute("DELETE FROM next_questions")
         conn.execute("DELETE FROM refresh_tokens")
         conn.execute("DELETE FROM patients")

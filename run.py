@@ -1,20 +1,21 @@
 import argon2
 from dotenv import load_dotenv
-from flask import Flask, render_template, render_template_string, redirect
-from llm import chatbot, reports
+from flask import Flask, render_template
+from llm import chatbot
 from db_manager import db
-from feature_extraction import send_audio_data as audio
 from datetime import datetime, timedelta
 from auth import utils as auth
 import os
-import glob
+import tempfile
+import uuid
 import jwt
-import json
 
 app = Flask(__name__, template_folder='pages')
 
 # Upgrade to llama3:70b once computing power is increased
-LLM_MODEL = 'deepseek-r1:32b'
+LLM_MODEL = 'llama3.1:8b'
+IMAGE_SUMMARY_MODEL = 'gemma4:e4b'
+TEMP_IMAGE_DIR = './temp_images'
 ph = argon2.PasswordHasher()
 load_dotenv()
 
@@ -51,35 +52,11 @@ def require_jwt(required_role=None):
 # Home page route
 @app.route('/')
 def home():
-    return render_template_string('''
-        <html>
-            <head><title>Neurolens</title></head>
-            <body>
-                <h1>Welcome to Neurolens</h1>
-                <a href='/patients'><button>View Patients</button></a>
-                <a href='/create'><button>Create New Patient</button></a>
-                <br><br><br>
-                <form method="POST" action="/clear_patients" onsubmit="return confirm('Are you sure you want to clear ALL patients?');">
-                    <input type="submit" style="background-color:red;color:white;" value="CLEAR PATIENTS">
-                </form>
-            </body>
-        </html>
-    ''')
+    return render_template("home.html")
 
 @app.route('/login', methods=['GET'])
 def show_login_page():
-    return '''
-        <h2>Login</h2>
-        <form method="POST" action="/auth/login">
-            Patient ID: <input name="patient_id" type="text"><br>
-            Password: <input name="password" type="password"><br>
-            Role: <select name="role">
-                <option value="patient">Patient</option>
-                <option value="caregiver">Caregiver</option>
-            </select><br>
-            <input type="submit" value="Login">
-        </form>
-    '''
+    return render_template("login.html")
 
 @app.route('/auth/login', methods=['POST'])
 def login():
@@ -144,18 +121,31 @@ def refresh():
 # View patients route
 @app.route('/patients')
 def view_patients():
+    return render_template("patients.html")
+
+@app.route('/patients_data', methods=['GET'])
+def patients_data():
     patients = db.get_all_patients()
     for p in patients:
         p['cognitive_history'] = db.get_full_cognitive_history(p['id'])
         p['question_history'] = db.get_full_question_history(p['id'])
+        p['image_summaries'] = db.get_full_image_summaries(p['id'])
         p['next_questions'] = db.get_next_questions(p['id'])
-    return render_template("patients.html", patients=patients)
+    return jsonify({'patients': patients})
 
 def prep_next_questions(patient_data, max_entries=50):
     for i in ['patient_id', 'patient_password', 'caregiver_password', 'next_questions']:
         patient_data.pop(i, None)
     patient_data["cognitive_history"] = db.get_trimmed_cognitive_history(patient_data["id"], max_entries)
+    patient_data["recent_question_history"] = db.get_full_question_history(patient_data["id"])[-max_entries:]
+    patient_data["image_summaries"] = [
+        entry["summary"] for entry in db.get_random_image_summaries(patient_data["id"], 5)
+    ]
+    print(f"[QUESTIONS] Preparing next questions for patient_id={patient_data['id']}", flush=True)
     qns = chatbot.new_questions(patient_data, model=LLM_MODEL)
+    if not isinstance(qns, list) or len(qns) != 5 or not all(isinstance(q, str) and q.strip() for q in qns):
+        raise ValueError(f"Expected 5 generated questions, got: {qns}")
+    print(f"[QUESTIONS] Generated and validated 5 questions for patient_id={patient_data['id']}", flush=True)
     return qns
 
 @app.route('/process_patient_data', methods=['POST'])
@@ -168,160 +158,184 @@ def process_data():
     patient_id = payload.get('patient_id')
     if not patient_id:
         return {'error': 'Missing patient_id'}, 400
+    if patient_id != request.patient_id:
+        return {'error': 'patient_id does not match authenticated user'}, 403
+
+    features = payload.get('features')
+    if not isinstance(features, list) or not features:
+        return {'error': 'features must be a non-empty list of numbers'}, 400
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in features):
+        return {'error': 'features must contain only numbers'}, 400
+
+    answers = payload.get('transcript_text')
+    if not isinstance(answers, list) or not answers:
+        return {'error': 'transcript_text must be a non-empty list of strings'}, 400
+    if not all(isinstance(answer, str) for answer in answers):
+        return {'error': 'transcript_text must contain only strings'}, 400
 
     patient = db.get_patient_by_id(patient_id)
     if not patient:
         return {'error': f'Patient ID {patient_id} not found'}, 404
 
-    db.append_cognitive_history(patient_id, payload['features'])
+    db.append_cognitive_history(patient_id, features)
 
     # Fetch next_questions before updating
     next_qns = db.get_next_questions(patient_id)
 
-    answers = payload.get('transcript_text', [])
     db.append_question_history(patient_id, next_qns, answers)
 
-    updated_next_qns = prep_next_questions(dict(patient))
+    try:
+        updated_next_qns = prep_next_questions(dict(patient))
+    except Exception as exc:
+        return {
+            'error': 'Failed to generate next questions',
+            'details': str(exc)
+        }, 502
     db.update_next_questions(patient_id, updated_next_qns)
 
-    return {'message': f'Data appended for patient {patient_id}'}, 200
+    return {
+        'message': f'Data appended for patient {patient_id}',
+        'next_questions': updated_next_qns
+    }, 200
 
-@app.route('/create', methods=['GET', 'POST'])
+@app.route('/create', methods=['GET'])
 def create_patient():
-    if request.method == 'POST':
-        patient_id = request.form['patient_id']
-        patient_password = ph.hash(request.form['patient_password'])
-        caregiver_password = ph.hash(request.form['caregiver_password'])
-        full_name = request.form['full_name']
-        first_name = request.form['first_name']
-        age = int(request.form['age'])
-        gender = request.form['gender']
+    return render_template("create.html")
 
-        db.create_new_patient(
-            patient_id=patient_id,
-            patient_password=patient_password,
-            caregiver_password=caregiver_password,
-            full_name=full_name,
-            first_name=first_name,
-            age=age,
-            gender=gender
-        )
-
-        patient = db.get_patient_by_id(patient_id)
-        if not patient:
-            return {'error': f'Patient ID {patient_id} not found'}, 404
-        updated_next_qns = prep_next_questions(dict(patient))
-        db.update_next_questions(patient_id, updated_next_qns)
-
-        return f"✅ Patient {patient_id} created successfully!"
-
-    return '''
-    <h2>Create New Patient</h2>
-    <form method="POST">
-        Patient ID: <input type="text" name="patient_id"><br>
-        Patient Password: <input type="text" name="patient_password"><br>
-        Caregiver Password: <input type="text" name="caregiver_password"><br>
-        Full Name: <input type="text" name="full_name"><br>
-        First Name: <input type="text" name="first_name"><br>
-        Age: <input type="number" name="age"><br>
-        Gender: <input type="text" name="gender"><br>
-        <input type="submit" value="Create Patient">
-    </form>
-    <a href="/"><button>Back</button></a>
-    '''
-
-@app.route('/upload_audio', methods=['POST'])
-@require_jwt(required_role='patient')
-def upload_audio():
-    patient_id = request.form.get('patient_id')
-    files = request.files.getlist('audio')
-
-    if not patient_id or not files:
-        return {'error': 'Missing patient_id or audio files'}, 400
-
-    file_paths = []
-
-    for idx, file in enumerate(files):
-        filename = f"{patient_id}_q{idx+1}.wav"
-        filepath = f"./temp/{filename}"
-        file.save(filepath)
-        file_paths.append(filepath)
-
-    # Run feature extraction on each file
-    result = audio.extract_features(file_paths, patient_id)
-    audio.send_to_server(
-        result,
-        post_url='http://localhost:6767/process_patient_data',
-        auth_headers=request.headers.get('Authorization')
-    )
-
-    files = glob.glob('./temp/*')
-    for f in files:
-        try:
-            os.remove(f)
-        except Exception as e:
-            print(f"Failed to delete {f}: {e}")
-
-    return {'message': f"Processed {len(files)} audio files, sent to server"}, 200
-
-@app.route('/generate_report', methods=['POST'])
-@require_jwt(required_role='caregiver')
-def generate_report():
-    payload = request.get_json()
-    if not payload:
+@app.route('/create_patient', methods=['POST'])
+def create_patient_api():
+    data = request.get_json()
+    if not data:
         return {'error': 'No JSON payload received'}, 400
 
-    patient_id = payload.get('patient_id')
-    days = payload.get('days')
+    required_fields = [
+        'patient_id',
+        'patient_password',
+        'caregiver_password',
+        'full_name',
+        'first_name',
+        'age',
+        'gender'
+    ]
+    missing_fields = [field for field in required_fields if field not in data or data[field] in (None, '')]
+    if missing_fields:
+        return {'error': f"Missing fields: {', '.join(missing_fields)}"}, 400
 
-    if not patient_id or days is None:
-        return {'error': 'Missing patient_id or days'}, 400
+    patient_id = data['patient_id']
+    patient_password = ph.hash(data['patient_password'])
+    caregiver_password = ph.hash(data['caregiver_password'])
+    full_name = data['full_name']
+    first_name = data['first_name']
+
+    try:
+        age = int(data['age'])
+    except (TypeError, ValueError):
+        return {'error': 'age must be an integer'}, 400
+
+    gender = data['gender']
+
+    db.create_new_patient(
+        patient_id=patient_id,
+        patient_password=patient_password,
+        caregiver_password=caregiver_password,
+        full_name=full_name,
+        first_name=first_name,
+        age=age,
+        gender=gender
+    )
 
     patient = db.get_patient_by_id(patient_id)
     if not patient:
         return {'error': f'Patient ID {patient_id} not found'}, 404
 
-    full_cog_history = db.get_trimmed_cognitive_history(patient_id, days)
-    full_qn_history = db.get_full_question_history(patient_id)
+    try:
+        updated_next_qns = prep_next_questions(dict(patient))
+    except Exception as exc:
+        return {
+            'error': 'Patient created, but failed to generate initial questions',
+            'details': str(exc)
+        }, 502
+    db.update_next_questions(patient_id, updated_next_qns)
 
-    recent_cog = full_cog_history[-30:]
-    older_cog = full_cog_history[:-30] if len(full_cog_history) > 30 else []
+    return {
+        'message': f'Patient {patient_id} created successfully',
+        'next_questions': updated_next_qns
+    }, 201
 
-    recent_qn = full_qn_history[-30:]
-    # (optional: summarize question history too, but keeping it raw for now)
+@app.route('/upload_patient_images', methods=['POST'])
+@require_jwt(required_role='caregiver')
+def upload_patient_images():
+    patient = db.get_patient_by_id(request.patient_id)
+    if not patient:
+        return {'error': f'Patient ID {request.patient_id} not found'}, 404
 
-    def summarize(history):
-        from statistics import mean
-        if not history:
-            return {}
-        summary = {}
-        keys = history[0].keys()
-        for k in keys:
-            vals = [h[k] for h in history if isinstance(h[k], (int, float))]
-            if vals:
-                summary[k] = {
-                    "avg": round(mean(vals), 3),
-                    "min": min(vals),
-                    "max": max(vals)
-                }
-        return summary
+    files = request.files.getlist('image')
+    valid_files = [file for file in files if file and file.filename]
+    if not valid_files:
+        return {'error': 'Missing image files. Use repeated form field name "image".'}, 400
 
-    summary_cog = summarize(older_cog)
+    os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
 
-    patient_data = {
-        "patient_info": {
-            "full_name": patient.get('full_name'),
-            "age": patient.get('age'),
-            "gender": patient.get('gender')
-        },
-        "recent_cognitive_history": recent_cog,
-        "yearly_summary": summary_cog,
-        "recent_question_history": recent_qn
-    }
+    stored_summaries = []
+    errors = []
 
-    result = reports.generate(patient_data, days, model=LLM_MODEL)
+    for file in valid_files:
+        suffix = os.path.splitext(file.filename)[1] or '.jpg'
+        temp_path = os.path.join(TEMP_IMAGE_DIR, f'{uuid.uuid4().hex}{suffix}')
+        try:
+            file.save(temp_path)
+            print(
+                f"[IMAGES] Saved upload for patient_id={request.patient_id} to {temp_path}",
+                flush=True,
+            )
+            summary = chatbot.summarize_image(temp_path, model=IMAGE_SUMMARY_MODEL)
+            stored_summaries.append(db.append_image_summary(request.patient_id, summary))
+        except Exception as exc:
+            errors.append({
+                'filename': file.filename,
+                'error': str(exc),
+            })
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                print(f"[IMAGES] Deleted temp file {temp_path}", flush=True)
 
-    return {'report': result}
+    if not stored_summaries:
+        return {
+            'error': 'Failed to process uploaded images',
+            'details': errors,
+        }, 502
+
+    status_code = 200 if not errors else 207
+    return {
+        'message': f'Processed {len(stored_summaries)} images',
+        'summaries': stored_summaries,
+        'errors': errors,
+    }, status_code
+
+@app.route('/patient_image_summaries', methods=['GET'])
+@require_jwt(required_role='caregiver')
+def get_patient_image_summaries():
+    patient = db.get_patient_by_id(request.patient_id)
+    if not patient:
+        return {'error': f'Patient ID {request.patient_id} not found'}, 404
+
+    return {
+        'patient_id': request.patient_id,
+        'image_summaries': db.get_full_image_summaries(request.patient_id),
+    }, 200
+
+@app.route('/next_questions', methods=['GET'])
+@require_jwt(required_role='patient')
+def get_next_questions():
+    patient = db.get_patient_by_id(request.patient_id)
+    if not patient:
+        return {'error': f'Patient ID {request.patient_id} not found'}, 404
+
+    return {
+        'patient_id': request.patient_id,
+        'next_questions': db.get_next_questions(request.patient_id)
+    }, 200
 
 @app.route('/pull_cognitive_history', methods=['POST'])
 @require_jwt(required_role='caregiver')
@@ -354,7 +368,7 @@ def pull_cognitive_history():
 @app.route('/clear_patients', methods=['POST'])
 def clear_patients():
     db.hard_clear()
-    return redirect('/')
+    return {'message': 'Cleared all patients and related data'}, 200
 
 if __name__ == '__main__':
     app.run(port=6767, debug=True)

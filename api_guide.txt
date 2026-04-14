@@ -36,56 +36,144 @@ it so that the user will always be logged in as long as they use the app at leas
 once every 5 days (depends on the duration marked in .env). This post gives
 you an alternative way to get a refresh token as compared to /login.
 
-[3] POST /process_patient_data done automatically after processing audio
+[3] POST /process_patient_data to submit one completed patient session
 
 Send:
 (Headers) Authorization: Bearer <access_token> [PATIENT-SIDE ONLY]
 Content-Type: application/json
 {
-    "patient_id": "P001",
-    "day_num": 1,
-    "duration_sec": 45.7,
-    "transcript_text": ["answer 1", "answer 2", "answer 3", "answer 4", "answer 5"],
-    "features": {
-        "speech_speed": 3.5,
-        "pauses": 15,
-        ...
-    }
+  "patient_id": "P001",
+  "transcript_text": [
+    "answer 1",
+    "answer 2",
+    "answer 3",
+    "answer 4",
+    "answer 5"
+  ],
+  "features": [0.12, 4.8, 19, 0.003]
 }
+
+Rules:
+- patient_id must match the authenticated patient in the JWT
+- transcript_text must be a non-empty list of strings
+- features must be a non-empty list of numbers
 
 Receive:
 {
-  "message": "Data appended for patient P001"
+  "message": "Data appended for patient P001",
+  "next_questions": [
+    "new question 1",
+    "new question 2",
+    "new question 3",
+    "new question 4",
+    "new question 5"
+  ]
 }
 
-[4] POST /upload_audio to send 5 audio files (.wav) from Flutter
+This stores the raw feature vector, stores the current question/answer history,
+generates the next 5 questions, and returns those next questions immediately.
+
+[4] GET /next_questions to fetch the current pending questions
 
 Send:
 (Headers) Authorization: Bearer <access_token> [PATIENT-SIDE ONLY]
-Content-Type: multipart/form-data
-Form data: 'patient_id' (e.g. P001), 'audio' (5 files, all using the key 'audio' and type .wav)
 
 Receive:
 {
-  "message": "Processed 5 audio files, sent to server"
+  "patient_id": "P001",
+  "next_questions": [
+    "question 1",
+    "question 2",
+    "question 3",
+    "question 4",
+    "question 5"
+  ]
 }
 
-! Important: make sure the form uses 'audio' as the field key for each file
+Use this if the app needs to fetch the latest stored questions without
+submitting a completed session.
 
-[5] POST /pull_cognitive_history to get a user's cog. history
+[5] POST /pull_cognitive_history to get a user's stored cognitive history
 
 Send:
 (Headers) Authorization: Bearer <access_token> [CAREGIVER-SIDE ONLY]
 {
-    "patient_id": "P001",
-    "days": 50
+  "patient_id": "P001",
+  "days": 50
 }
 
 Receive:
 {
-    "cognitive_history": [
-        {...}, {...}, {...}, ...
-    ]
+  "cognitive_history": [
+    {"date": "2026-04-14", "features": [0.12, 4.8, 19, 0.003]},
+    {"date": "2026-04-13", "features": [0.11, 4.9, 18, 0.004]}
+  ]
 }
 
-If `days` = -1, server returns FULL history. Otherwise it returns all entries from the past `days` days
+If `days` = -1, server returns FULL history. Otherwise it returns all entries
+from the past `days` days.
+
+[6] POST /upload_patient_images to upload one or more patient images
+
+Send:
+(Headers) Authorization: Bearer <access_token> [CAREGIVER-SIDE ONLY]
+Content-Type: multipart/form-data
+Form data: repeated field name `image`
+
+Behavior:
+- each uploaded image is summarized with Ollama model `gemma4:e4b`
+- each image is deleted from temp storage right after it is processed
+- only the text summary is stored in the database
+- the caregiver's JWT determines which patient the summaries belong to
+
+Receive:
+{
+  "message": "Processed 2 images",
+  "summaries": [
+    {
+      "id": 1,
+      "patient_id": "P001",
+      "date": "2026-04-14",
+      "summary": "Dense factual summary of image 1..."
+    },
+    {
+      "id": 2,
+      "patient_id": "P001",
+      "date": "2026-04-14",
+      "summary": "Dense factual summary of image 2..."
+    }
+  ],
+  "errors": []
+}
+
+If some images fail, successful summaries are still stored and returned. The
+response may include an `errors` list for the failed files.
+
+[7] GET /patient_image_summaries to fetch stored image summaries
+
+Send:
+(Headers) Authorization: Bearer <access_token> [CAREGIVER-SIDE ONLY]
+
+Receive:
+{
+  "patient_id": "P001",
+  "image_summaries": [
+    {
+      "id": 2,
+      "date": "2026-04-14",
+      "summary": "Dense factual summary..."
+    },
+    {
+      "id": 1,
+      "date": "2026-04-14",
+      "summary": "Another dense factual summary..."
+    }
+  ]
+}
+
+These summaries are also sampled at random, up to 5 per question-generation
+call, and included in the prompt context for generating future questions.
+
+Removed endpoints:
+- /upload_audio
+- /generate_report
