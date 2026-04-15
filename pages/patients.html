@@ -1,44 +1,400 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Patients Viewer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f14">
+    <title>Neurolens Patients</title>
     <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-bottom: 20px;
+        :root {
+            --bg: #0b0f14;
+            --panel: #151b23;
+            --panel-2: #1a222c;
+            --line: #252f3b;
+            --text: #e6edf3;
+            --muted: #94a3b8;
+            --accent: #7dd3fc;
+            --radius: 14px;
+            --radius-sm: 10px;
+            --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+            --font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         }
-        th, td {
-            border: 1px solid #999;
-            padding: 8px;
-            text-align: left;
+
+        * { box-sizing: border-box; }
+        html {
+            background: #0b0f14;
+            color-scheme: dark;
         }
-        .details {
-            display: none;
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(180deg, #0a0e13 0%, var(--bg) 100%);
+            color: var(--text);
+            font-family: var(--font);
+            overflow-x: hidden;
         }
-        .patient-row {
-            background-color: #f9f9f9;
+        a { color: inherit; text-decoration: none; }
+        button, input, select { font: inherit; }
+
+        .shell {
+            width: min(1280px, calc(100vw - 32px));
+            min-height: calc(100vh - 40px);
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
-        .patient-row:hover {
-            background-color: #e0e0e0;
+
+        .topbar,
+        .panel,
+        .modal,
+        .backdrop {
+            box-shadow: var(--shadow);
+        }
+
+        .topbar,
+        .panel,
+        .modal {
+            background: rgba(21, 27, 35, 0.96);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            animation: riseIn 420ms ease both;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 18px;
+        }
+
+        .brand {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .mark {
+            width: 38px;
+            height: 38px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            border: 1px solid rgba(125, 211, 252, 0.35);
+            color: var(--accent);
+            background: rgba(125, 211, 252, 0.08);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .title { margin: 0; font-size: 0.98rem; font-weight: 700; }
+        .subtle { margin: 4px 0 0; color: var(--muted); font-size: 0.84rem; }
+
+        .nav { display: flex; flex-wrap: wrap; gap: 8px; }
+        .nav a,
+        .btn {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: var(--panel-2);
+            color: var(--text);
             cursor: pointer;
+            transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
         }
+
+        .nav a.active { color: var(--accent); border-color: rgba(125, 211, 252, 0.35); }
+        .nav a:hover,
+        .btn:hover { transform: translateY(-2px); border-color: rgba(125, 211, 252, 0.35); }
+
+        .panel {
+            margin-top: 16px;
+            padding: 16px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .row input,
+        .row select {
+            width: 100%;
+            padding: 11px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #0f141b;
+            color: var(--text);
+            outline: none;
+        }
+
+        .status {
+            min-height: 18px;
+            margin-bottom: 10px;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .table-wrap {
+            overflow: auto;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--line);
+            background: #0f141b;
+        }
+
+        table {
+            width: 100%;
+            min-width: 860px;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            text-align: left;
+            padding: 12px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            border-bottom: 1px solid var(--line);
+            background: #121821;
+        }
+
+        tbody td {
+            padding: 12px;
+            border-bottom: 1px solid #1b2430;
+            vertical-align: top;
+            font-size: 0.9rem;
+        }
+
+        tbody tr:hover {
+            background: rgba(125, 211, 252, 0.03);
+        }
+
+        .muted { color: var(--muted); }
+
+        .pill {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid #234052;
+            color: var(--accent);
+            background: rgba(125, 211, 252, 0.06);
+            font-size: 0.78rem;
+        }
+
+        .empty {
+            padding: 28px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 12, 0.68);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 120ms ease;
+            z-index: 20;
+        }
+
+        .modal-wrap {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 120ms ease;
+            z-index: 30;
+        }
+
+        .modal {
+            width: min(1240px, calc(100vw - 32px));
+            max-height: calc(100vh - 48px);
+            overflow: auto;
+            transform: translateY(12px) scale(0.985);
+            transition: transform 140ms ease;
+        }
+
+        .modal-wrap.open { opacity: 1; pointer-events: auto; }
+        .modal-wrap.open .modal { transform: translateY(0) scale(1); }
+        .backdrop.open { opacity: 1; pointer-events: auto; }
+
+        .modal-head {
+            position: sticky;
+            top: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(21, 27, 35, 0.98);
+            border-bottom: 1px solid var(--line);
+            z-index: 2;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 0.96rem;
+        }
+
+        .modal-body {
+            padding: 16px;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .column {
+            display: grid;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .card {
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #0f141b;
+        }
+
+        .card h3 {
+            margin: 0 0 10px;
+            font-size: 0.84rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .list,
+        .stack {
+            display: grid;
+            gap: 8px;
+        }
+
+        .item {
+            padding: 10px;
+            border-radius: 8px;
+            background: #121821;
+            border: 1px solid #1f2937;
+            font-size: 0.84rem;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+        }
+
+        .item strong {
+            color: var(--text);
+        }
+
+        .item-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .item-date {
+            color: var(--accent);
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+
+        .kv-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .kv-row {
+            display: grid;
+            grid-template-columns: 116px 1fr;
+            gap: 10px;
+            padding: 9px 10px;
+            border-radius: 8px;
+            background: #121821;
+            border: 1px solid #1f2937;
+            font-size: 0.82rem;
+        }
+
+        .kv-row strong {
+            color: var(--muted);
+        }
+
+        .qa {
+            display: grid;
+            gap: 8px;
+        }
+
+        .qa-block {
+            padding: 10px;
+            border-radius: 8px;
+            background: #0c1117;
+            border: 1px solid #1e293b;
+        }
+
+        .qa-label {
+            color: var(--accent);
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
         pre {
+            margin: 0;
+            padding: 12px;
+            border-radius: 8px;
+            background: #0a0e13;
+            border: 1px solid #1e293b;
+            color: #cbd5e1;
             white-space: pre-wrap;
-            word-wrap: break-word;
-            background: #f0f0f0;
-            padding: 8px;
-            border: 1px solid #ccc;
+            overflow-wrap: anywhere;
+            font-size: 0.8rem;
+        }
+
+        @keyframes riseIn {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .topbar,
+            .row {
+                grid-template-columns: 1fr;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .table-wrap {
+                overflow: auto;
+            }
+
+            .modal-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
     <script>
-        function toggleDetails(id) {
-            const el = document.getElementById('details-' + id);
-            el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+        let allPatients = [];
+        let activePatient = null;
+
+        function safeArray(value) {
+            return Array.isArray(value) ? value : [];
         }
 
         function escapeHtml(value) {
-            return String(value)
+            return String(value ?? '')
                 .replaceAll('&', '&amp;')
                 .replaceAll('<', '&lt;')
                 .replaceAll('>', '&gt;')
@@ -46,60 +402,158 @@
                 .replaceAll("'", '&#39;');
         }
 
-        function renderPatient(patient) {
-            const nextQuestions = patient.next_questions.map((question) =>
-                `<li>${escapeHtml(question)}</li>`
-            ).join('');
+        function renderSimpleList(items, emptyMessage) {
+            const list = safeArray(items);
+            if (!list.length) {
+                return `<div class="item muted">${escapeHtml(emptyMessage)}</div>`;
+            }
+            return `<div class="list">${list.map((item) => `<div class="item">${escapeHtml(item)}</div>`).join('')}</div>`;
+        }
 
-            const cognitiveHistory = patient.cognitive_history.map((entry) =>
-                `<div><em>${escapeHtml(entry.date)}</em>:<pre>${escapeHtml(JSON.stringify(entry.features, null, 2))}</pre></div>`
-            ).join('');
+        function renderTimeline(items, renderFn, emptyMessage) {
+            const list = safeArray(items);
+            if (!list.length) {
+                return `<div class="item muted">${escapeHtml(emptyMessage)}</div>`;
+            }
+            return `<div class="stack">${list.map(renderFn).join('')}</div>`;
+        }
 
-            const questionHistory = patient.question_history.map((entry) => {
-                const qaItems = entry.qa.map((qa) =>
-                    `<li><b>Q:</b> ${escapeHtml(qa.q)} <br> <b>A:</b> ${escapeHtml(qa.a)}</li>`
-                ).join('');
-                return `<div><em>${escapeHtml(entry.date)}</em>:<ul>${qaItems}</ul></div>`;
-            }).join('');
-
-            const imageSummaries = patient.image_summaries.map((entry) =>
-                `<div><em>${escapeHtml(entry.date)}</em> (#${escapeHtml(entry.id)}):<pre>${escapeHtml(entry.summary)}</pre></div>`
-            ).join('');
-
+        function renderPatientRow(patient) {
             return `
-                <tr class="patient-row" onclick="toggleDetails('${escapeHtml(patient.id)}')">
+                <tr>
                     <td>${escapeHtml(patient.id)}</td>
-                    <td>${escapeHtml(patient.full_name)}</td>
-                    <td>${escapeHtml(patient.age)}</td>
-                    <td>${escapeHtml(patient.gender)}</td>
-                    <td>${patient.cognitive_history.length}</td>
-                </tr>
-                <tr id="details-${escapeHtml(patient.id)}" class="details">
-                    <td colspan="5">
-                        <strong>Details:</strong><br>
-                        Description: ${escapeHtml(patient.description)}<br><br>
-
-                        <strong>Next Questions:</strong>
-                        <ul>${nextQuestions}</ul>
-
-                        <strong>Cognitive History:</strong><br>
-                        ${cognitiveHistory}
-
-                        <strong>Question History:</strong><br>
-                        ${questionHistory}
-
-                        <strong>Image Summaries:</strong><br>
-                        ${imageSummaries}
+                    <td>
+                        <div>${escapeHtml(patient.full_name || '-')}</div>
+                        <div class="muted">${escapeHtml(patient.description || '')}</div>
                     </td>
+                    <td>${escapeHtml(patient.age ?? '-')}</td>
+                    <td>${escapeHtml(patient.gender || '-')}</td>
+                    <td><span class="pill">${safeArray(patient.cognitive_history).length}</span></td>
+                    <td><span class="pill">${safeArray(patient.next_questions).length}</span></td>
+                    <td><button class="btn" type="button" onclick="openPatient('${escapeHtml(patient.id)}')">inspect</button></td>
                 </tr>
             `;
         }
 
-        async function loadPatients() {
-            const body = document.getElementById('patients-body');
-            const status = document.getElementById('status');
+        function filteredPatients() {
+            const query = document.getElementById('search').value.trim().toLowerCase();
+            const gender = document.getElementById('gender-filter').value.trim().toLowerCase();
 
+            return allPatients.filter((patient) => {
+                const searchable = [
+                    patient.id,
+                    patient.full_name,
+                    patient.gender,
+                    patient.description
+                ].map((value) => String(value ?? '').toLowerCase());
+
+                const matchesQuery = !query || searchable.some((value) => value.includes(query));
+                const matchesGender = !gender || String(patient.gender ?? '').toLowerCase() === gender;
+                return matchesQuery && matchesGender;
+            });
+        }
+
+        function renderTable() {
+            const body = document.getElementById('patients-body');
+            const patients = filteredPatients();
+
+            if (!patients.length) {
+                body.innerHTML = '<tr><td colspan="7"><div class="empty">No patients match current filters.</div></td></tr>';
+                return;
+            }
+
+            body.innerHTML = patients.map(renderPatientRow).join('');
+        }
+
+        function closeModal() {
+            document.getElementById('backdrop').classList.remove('open');
+            document.getElementById('modal-wrap').classList.remove('open');
+        }
+
+        function openPatient(id) {
+            activePatient = allPatients.find((patient) => String(patient.id) === String(id));
+            if (!activePatient) {
+                return;
+            }
+
+            document.getElementById('modal-title').textContent = activePatient.full_name || activePatient.id || 'patient';
+            document.getElementById('modal-subtitle').textContent = `${activePatient.id} • ${activePatient.gender || '-'} • age ${activePatient.age ?? '-'}`;
+
+            document.getElementById('modal-profile').innerHTML = `
+                <div class="kv-list">
+                    <div class="kv-row"><strong>id</strong><span>${escapeHtml(activePatient.id || '-')}</span></div>
+                    <div class="kv-row"><strong>full_name</strong><span>${escapeHtml(activePatient.full_name || '-')}</span></div>
+                    <div class="kv-row"><strong>age</strong><span>${escapeHtml(activePatient.age ?? '-')}</span></div>
+                    <div class="kv-row"><strong>gender</strong><span>${escapeHtml(activePatient.gender || '-')}</span></div>
+                    <div class="kv-row"><strong>description</strong><span>${escapeHtml(activePatient.description || '-')}</span></div>
+                </div>
+            `;
+
+            document.getElementById('modal-next').innerHTML = renderSimpleList(
+                activePatient.next_questions,
+                'No next questions.'
+            );
+
+            document.getElementById('modal-images').innerHTML = renderTimeline(
+                activePatient.image_summaries,
+                (entry) => `
+                    <div class="item">
+                        <div class="item-head">
+                            <strong>summary</strong>
+                            <span class="item-date">${escapeHtml(entry.date || 'unknown date')}</span>
+                        </div>
+                        <div>${escapeHtml(entry.summary || '')}</div>
+                    </div>
+                `,
+                'No image summaries.'
+            );
+
+            document.getElementById('modal-cognitive').innerHTML = renderTimeline(
+                activePatient.cognitive_history,
+                (entry) => `
+                    <div class="item">
+                        <div class="item-head">
+                            <strong>features</strong>
+                            <span class="item-date">${escapeHtml(entry.date || 'unknown date')}</span>
+                        </div>
+                        <pre>${escapeHtml(JSON.stringify(entry.features, null, 2))}</pre>
+                    </div>
+                `,
+                'No cognitive history.'
+            );
+
+            document.getElementById('modal-questions').innerHTML = renderTimeline(
+                activePatient.question_history,
+                (entry) => `
+                    <div class="item">
+                        <div class="item-head">
+                            <strong>session</strong>
+                            <span class="item-date">${escapeHtml(entry.date || 'unknown date')}</span>
+                        </div>
+                        <div class="qa">
+                            ${safeArray(entry.qa).map((qa) => `
+                                <div class="qa-block">
+                                    <div class="qa-label">Q</div>
+                                    <div>${escapeHtml(qa.q)}</div>
+                                    <div class="qa-label" style="margin-top: 10px;">A</div>
+                                    <div>${escapeHtml(qa.a)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `,
+                'No question history.'
+            );
+
+            document.getElementById('backdrop').classList.add('open');
+            document.getElementById('modal-wrap').classList.add('open');
+        }
+
+        async function loadPatients() {
+            const status = document.getElementById('status');
+            const genderFilter = document.getElementById('gender-filter');
             status.textContent = 'Loading...';
+
             try {
                 const response = await fetch('/patients_data');
                 const data = await response.json();
@@ -108,28 +562,132 @@
                     throw new Error(data.error || 'Failed to load patients');
                 }
 
-                body.innerHTML = data.patients.map(renderPatient).join('');
-                status.textContent = '';
+                allPatients = safeArray(data.patients);
+                const genders = [...new Set(allPatients.map((patient) => String(patient.gender || '').trim().toLowerCase()).filter(Boolean))].sort();
+                genderFilter.innerHTML =
+                    '<option value="">all genders</option>' +
+                    genders.map((gender) => `<option value="${escapeHtml(gender)}">${escapeHtml(gender)}</option>`).join('');
+
+                renderTable();
+                status.textContent = `Loaded ${allPatients.length} patients.`;
             } catch (error) {
-                body.innerHTML = '';
+                allPatients = [];
+                renderTable();
                 status.textContent = error.message;
             }
         }
 
-        window.addEventListener('DOMContentLoaded', loadPatients);
+        window.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('search').addEventListener('input', renderTable);
+            document.getElementById('gender-filter').addEventListener('change', renderTable);
+            document.getElementById('clear-filters').addEventListener('click', function() {
+                document.getElementById('search').value = '';
+                document.getElementById('gender-filter').value = '';
+                renderTable();
+            });
+            document.getElementById('backdrop').addEventListener('click', closeModal);
+            document.getElementById('close-modal').addEventListener('click', closeModal);
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeModal();
+                }
+            });
+            loadPatients();
+        });
     </script>
 </head>
 <body>
-    <h2>All Patients</h2>
-    <a href="/"><button>Back</button></a>
-    <p id="status"></p>
-    <table>
-        <thead>
-            <tr>
-                <th>Patient ID</th><th>Full Name</th><th>Age</th><th>Gender</th><th>#Cognitive Entries</th>
-            </tr>
-        </thead>
-        <tbody id="patients-body"></tbody>
-    </table>
+    <div class="shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="mark">NL</div>
+                <div>
+                    <p class="title">patients</p>
+                    <p class="subtle">registry + side inspector</p>
+                </div>
+            </div>
+            <nav class="nav">
+                <a href="/">overview</a>
+                <a class="active" href="/patients">patients</a>
+                <a href="/create">create</a>
+                <a href="/login">login</a>
+            </nav>
+        </header>
+
+        <section class="panel">
+            <div class="row">
+                <input id="search" type="search" placeholder="search id / name / gender / description">
+                <select id="gender-filter">
+                    <option value="">all genders</option>
+                </select>
+                <button id="clear-filters" class="btn" type="button">clear</button>
+            </div>
+
+            <p id="status" class="status"></p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>id</th>
+                            <th>profile</th>
+                            <th>age</th>
+                            <th>gender</th>
+                            <th>cognitive</th>
+                            <th>next</th>
+                            <th>inspect</th>
+                        </tr>
+                    </thead>
+                    <tbody id="patients-body">
+                        <tr><td colspan="7"><div class="empty">Loading...</div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <div id="backdrop" class="backdrop"></div>
+
+    <div id="modal-wrap" class="modal-wrap">
+        <section class="modal">
+        <div class="modal-head">
+            <div>
+                <h2 id="modal-title" class="modal-title">patient</h2>
+                <p id="modal-subtitle" class="subtle">-</p>
+            </div>
+            <button id="close-modal" class="btn" type="button">close</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-grid">
+            <div class="column">
+            <section class="card">
+                <h3>profile</h3>
+                <div id="modal-profile" class="stack"></div>
+            </section>
+            <section class="card">
+                <h3>next_questions</h3>
+                <div id="modal-next"></div>
+            </section>
+            <section class="card">
+                <h3>image_summaries</h3>
+                <div id="modal-images"></div>
+            </section>
+            </div>
+            <div class="column">
+            <section class="card">
+                <h3>cognitive_history</h3>
+                <div id="modal-cognitive"></div>
+            </section>
+            </div>
+            <div class="column">
+            <section class="card">
+                <h3>question_history</h3>
+                <div id="modal-questions"></div>
+            </section>
+            </div>
+            </div>
+        </div>
+        </section>
+    </div>
 </body>
 </html>

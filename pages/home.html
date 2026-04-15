@@ -1,36 +1,306 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f14">
     <title>Neurolens</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --bg-elev: #11161d;
+            --panel: #151b23;
+            --panel-2: #1a222c;
+            --line: #252f3b;
+            --text: #e6edf3;
+            --muted: #94a3b8;
+            --accent: #7dd3fc;
+            --accent-2: #38bdf8;
+            --danger: #ef4444;
+            --danger-2: #dc2626;
+            --radius: 14px;
+            --radius-sm: 10px;
+            --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+            --font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        * { box-sizing: border-box; }
+        html {
+            background: #0b0f14;
+            color-scheme: dark;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 24%),
+                linear-gradient(180deg, #0a0e13 0%, var(--bg) 100%);
+            color: var(--text);
+            font-family: var(--font);
+            overflow-x: hidden;
+        }
+
+        a { color: inherit; text-decoration: none; }
+
+        .shell {
+            width: min(1080px, calc(100vw - 32px));
+            min-height: calc(100vh - 40px);
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .topbar,
+        .panel,
+        .action {
+            background: rgba(21, 27, 35, 0.94);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            animation: riseIn 420ms ease both;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 18px;
+            border-radius: var(--radius);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mark {
+            width: 38px;
+            height: 38px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            border: 1px solid #1f9fd2;
+            color: var(--accent);
+            background: rgba(56, 189, 248, 0.08);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 0.98rem;
+            font-weight: 700;
+        }
+
+        .subtle {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .nav a,
+        .btn {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: var(--panel-2);
+            color: var(--text);
+            font: inherit;
+            cursor: pointer;
+            transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+        }
+
+        .nav a.active {
+            border-color: rgba(125, 211, 252, 0.45);
+            color: var(--accent);
+        }
+
+        .section {
+            margin-top: 16px;
+        }
+
+        .panel {
+            padding: 18px;
+            border-radius: var(--radius);
+        }
+
+        .section-title {
+            margin: 0 0 14px;
+            font-size: 0.92rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .action {
+            display: block;
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+        }
+
+        .action:hover,
+        .nav a:hover,
+        .btn:hover {
+            transform: translateY(-2px);
+            border-color: rgba(125, 211, 252, 0.34);
+        }
+
+        .action:hover {
+            background: #19212b;
+        }
+
+        .action h2 {
+            margin: 0 0 8px;
+            font-size: 0.98rem;
+        }
+
+        .action p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.84rem;
+            line-height: 1.55;
+        }
+
+        .meta {
+            margin-top: 12px;
+            color: var(--accent);
+            font-size: 0.8rem;
+        }
+
+        .danger {
+            background: rgba(127, 29, 29, 0.16);
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+
+        .danger .btn {
+            background: linear-gradient(180deg, var(--danger), var(--danger-2));
+            border-color: transparent;
+        }
+
+        pre {
+            margin: 12px 0 0;
+            min-height: 140px;
+            padding: 14px;
+            border-radius: 10px;
+            background: #0a0e13;
+            border: 1px solid #1e293b;
+            color: #cbd5e1;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        @keyframes riseIn {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Neurolens</h1>
-    <a href="/patients"><button>View Patients</button></a>
-    <a href="/create"><button>Create New Patient</button></a>
-    <a href="/login"><button>Login</button></a>
-    <br><br><br>
-    <button id="clear-patients" style="background-color:red;color:white;">CLEAR PATIENTS</button>
-    <pre id="clear-result"></pre>
+    <div class="shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="mark">NL</div>
+                <div>
+                    <p class="title">Neurolens</p>
+                    <p class="subtle">Internal backend viewer</p>
+                </div>
+            </div>
+            <nav class="nav">
+                <a class="active" href="/">overview</a>
+                <a href="/patients">patients</a>
+                <a href="/create">create</a>
+                <a href="/login">login</a>
+            </nav>
+        </header>
+
+        <section class="section">
+            <div class="panel">
+                <p class="section-title">Routes</p>
+                <div class="actions">
+                    <a class="action" href="/patients">
+                        <h2>patients</h2>
+                        <p>Registry table with quick search and an inspector panel.</p>
+                        <div class="meta">GET /patients_data</div>
+                    </a>
+                    <a class="action" href="/create">
+                        <h2>create</h2>
+                        <p>Minimal patient creation form with request result output.</p>
+                        <div class="meta">POST /create_patient</div>
+                    </a>
+                    <a class="action" href="/login">
+                        <h2>login</h2>
+                        <p>Simple auth tester for patient and caregiver roles.</p>
+                        <div class="meta">POST /auth/login</div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="panel danger">
+                <p class="section-title">Danger Zone</p>
+                <button id="clear-patients" class="btn" type="button">clear all patients</button>
+                <pre id="clear-result">No action run.</pre>
+            </div>
+        </section>
+    </div>
 
     <script>
-        console.log('home script loaded');
-
         const clearBtn = document.getElementById('clear-patients');
-        console.log('clearBtn =', clearBtn);
+        const clearResult = document.getElementById('clear-result');
 
         clearBtn.addEventListener('click', async function() {
-            console.log('clear button clicked');
-
-            const confirmed = window.confirm('Are you sure you want to clear ALL patients?');
-            console.log('confirm result =', confirmed);
-
-            if (!confirmed) {
+            if (!window.confirm('Are you sure you want to clear ALL patients?')) {
                 return;
             }
 
-            const response = await fetch('/clear_patients', { method: 'POST' });
-            const data = await response.json();
-            document.getElementById('clear-result').textContent = JSON.stringify(data, null, 2);
+            clearBtn.disabled = true;
+            clearResult.textContent = 'Running...';
+
+            try {
+                const response = await fetch('/clear_patients', { method: 'POST' });
+                const data = await response.json();
+                clearResult.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                clearResult.textContent = JSON.stringify({
+                    error: 'Request failed',
+                    details: error.message
+                }, null, 2);
+            } finally {
+                clearBtn.disabled = false;
+            }
         });
     </script>
 </body>
